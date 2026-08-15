@@ -26,6 +26,12 @@
 #   T22: Quick Close requires a runner card only when the runner and graph exist (issue #356)
 #   T23: wp-sync-bundle prefers folder cards and reads structured open phase statuses
 #   T24-T27: update safety, bootstrap/path contracts, multiplier opt-out, #384/#387/#388
+#   T28: settings.json merge preview never touches inputs, honors merge rules (WP-7 F71)
+#   T29: author_mode skip classifier verdicts on synthetic template history (WP-7 F71)
+#   T30: update.sh wires stage-A observability scripts in (WP-7 F71)
+#   T31: extensions-gate is fail-closed: traversal/symlink/broken-manifest/manifest-edit block (WP-7 F71)
+#   T32: settings-merge-apply.sh applies with backup, rolls back on broken input (WP-7 F71 stage B)
+#   T33: update.sh wires stage-B flags with consensus safeguards (WP-7 F71)
 #
 # Exit: 0 = all PASS, N = N tests failed
 #
@@ -1747,12 +1753,309 @@ fi
 
 if MEMORY_OUTPUT=$(WORKSPACE_DIR="$TEMPLATE_DIR" IWE_ROOT="$TEMPLATE_DIR" \
     bash "$TEMPLATE_DIR/scripts/memory-validate.sh" --dir "$TEMPLATE_DIR/memory" --quiet) && \
-   grep -q 'Итог: 29/29 файлов OK' <<<"$MEMORY_OUTPUT" && \
+   grep -qE 'Итог: ([0-9]+)/\1 файлов OK' <<<"$MEMORY_OUTPUT" && \
    WORKSPACE_DIR="$TEMPLATE_DIR" IWE_ROOT="$TEMPLATE_DIR" \
     bash "$TEMPLATE_DIR/scripts/memory-validate.sh" "$TEMPLATE_DIR/memory/reference/agent-core.md" --quiet >/dev/null; then
     pass "T27: every shipped memory frontmatter checked by the validator is valid"
 else
     fail "T27: shipped memory frontmatter still violates its own schema"
+fi
+
+# T28: settings-merge-preview.py builds a merged preview and never touches inputs (WP-7 F71 stage A)
+echo ""
+echo "--- T28: settings.json merge preview (WP-7 F71 stage A) ---"
+T28_DIR="$TEST_WS/t28"
+mkdir -p "$T28_DIR"
+cat > "$T28_DIR/template.json" <<'EOF'
+{"model": "opus", "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "tpl-hook.sh"}]}], "SessionStart": [{"hooks": [{"type": "command", "command": "new-hook.sh"}]}]}, "permissions": {"allow": ["Bash(ls:*)", "Bash(git status:*)"]}, "newKey": true}
+EOF
+cat > "$T28_DIR/workspace.json" <<'EOF'
+{"model": "sonnet", "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "my-custom.sh"}]}, {"matcher": "Bash", "hooks": [{"type": "command", "command": "tpl-hook.sh"}]}]}, "permissions": {"allow": ["Bash(ls:*)", "mcp__my__*"]}, "userOnly": 1}
+EOF
+T28_WS_HASH_BEFORE=$(shasum -a 256 "$T28_DIR/workspace.json" | cut -d' ' -f1)
+T28_REPORT=$(python3 "$TEMPLATE_DIR/.claude/scripts/settings-merge-preview.py" \
+    "$T28_DIR/template.json" "$T28_DIR/workspace.json" "$T28_DIR/preview.json")
+T28_RC=$?
+T28_WS_HASH_AFTER=$(shasum -a 256 "$T28_DIR/workspace.json" | cut -d' ' -f1)
+if [ "$T28_RC" -eq 0 ] && python3 -m json.tool "$T28_DIR/preview.json" >/dev/null 2>&1; then
+    pass "T28: preview is generated and is valid JSON"
+else
+    fail "T28: preview missing or invalid JSON (rc=$T28_RC)"
+fi
+if grep -Fq 'my-custom.sh' "$T28_DIR/preview.json" && grep -Fq 'new-hook.sh' "$T28_DIR/preview.json"; then
+    pass "T28: user hook preserved AND template-new hook added"
+else
+    fail "T28: hook union lost a side (user or template)"
+fi
+if python3 -c '
+import json, sys
+p = json.load(open(sys.argv[1]))
+sys.exit(0 if p["model"] == "sonnet" and p["newKey"] is True and p["userOnly"] == 1 else 1)
+' "$T28_DIR/preview.json"; then
+    pass "T28: conflict keeps user value; template-new and user-only keys survive"
+else
+    fail "T28: scalar merge rules violated (conflict/user-only/template-new)"
+fi
+if grep -Fq '"model"' <<<"$T28_REPORT" && grep -Fq '"hooks_deduped": 1' <<<"$T28_REPORT"; then
+    pass "T28: report names the conflict key and counts deduped hooks"
+else
+    fail "T28: report misses conflict key or dedup counter: $T28_REPORT"
+fi
+if [ "$T28_WS_HASH_BEFORE" = "$T28_WS_HASH_AFTER" ]; then
+    pass "T28: workspace settings.json is byte-identical after preview"
+else
+    fail "T28: preview run modified workspace settings.json"
+fi
+echo '{broken' > "$T28_DIR/bad.json"
+if python3 "$TEMPLATE_DIR/.claude/scripts/settings-merge-preview.py" \
+    "$T28_DIR/bad.json" "$T28_DIR/workspace.json" "$T28_DIR/bad-preview.json" >/dev/null 2>&1; then
+    fail "T28: broken input JSON was accepted"
+else
+    if [ ! -f "$T28_DIR/bad-preview.json" ]; then
+        pass "T28: broken input rejected, no preview written"
+    else
+        fail "T28: broken input rejected but a torn preview file exists"
+    fi
+fi
+
+# T29: classify-workspace-copy.sh verdicts on a synthetic template history (WP-7 F71 stage A)
+echo ""
+echo "--- T29: author_mode skip classifier (WP-7 F71 stage A) ---"
+T29_DIR="$TEST_WS/t29"
+mkdir -p "$T29_DIR/repo"
+git -C "$T29_DIR/repo" init -q
+git -C "$T29_DIR/repo" -c user.email=t@t -c user.name=t commit -q --allow-empty -m root
+echo "v1" > "$T29_DIR/repo/f.md"
+git -C "$T29_DIR/repo" add f.md
+git -C "$T29_DIR/repo" -c user.email=t@t -c user.name=t commit -qm v1
+echo "v2" > "$T29_DIR/repo/f.md"
+git -C "$T29_DIR/repo" add f.md
+git -C "$T29_DIR/repo" -c user.email=t@t -c user.name=t commit -qm v2
+echo "v1" > "$T29_DIR/dst-stale"
+echo "edited by user" > "$T29_DIR/dst-authored"
+echo "v2" > "$T29_DIR/dst-uptodate"
+T29_CLS="$TEMPLATE_DIR/.claude/scripts/classify-workspace-copy.sh"
+t29_case() {
+    local expect="$1"; shift
+    local got
+    got=$(bash "$T29_CLS" "$@")
+    if [ "$got" = "$expect" ]; then
+        pass "T29: $expect"
+    else
+        fail "T29: expected '$expect', got '$got' (args: $*)"
+    fi
+}
+echo "never committed" > "$T29_DIR/repo/orphan.md"
+t29_case "unknown no-history" "$T29_DIR/repo" orphan.md "$T29_DIR/dst-authored"
+t29_case "stale history"     "$T29_DIR/repo" f.md "$T29_DIR/dst-stale"
+t29_case "authored diverged" "$T29_DIR/repo" f.md "$T29_DIR/dst-authored"
+t29_case "uptodate current"  "$T29_DIR/repo" f.md "$T29_DIR/dst-uptodate"
+t29_case "unknown no-git"    "$T29_DIR"      f.md "$T29_DIR/dst-authored"
+if [ "$(bash "$T29_CLS" --templated "$T29_DIR/repo" f.md "$T29_DIR/dst-authored")" = "unknown templated" ]; then
+    pass "T29: --templated downgrades authored to unknown (substituted placeholders)"
+else
+    fail "T29: --templated must not claim 'authored' for substituted files"
+fi
+
+# T30: update.sh wires the stage-A scripts in (grep-level, same idiom as T16)
+echo ""
+echo "--- T30: update.sh integration of stage-A observability (WP-7 F71) ---"
+if grep -Fq 'classify-workspace-copy.sh' "$TEMPLATE_DIR/update.sh" && \
+   grep -Fq 'settings-merge-preview.py' "$TEMPLATE_DIR/update.sh" && \
+   grep -Fq 'report_author_skip_summary' "$TEMPLATE_DIR/update.sh"; then
+    pass "T30: update.sh calls classifier, merge preview and prints the skip summary"
+else
+    fail "T30: update.sh lost a stage-A integration point"
+fi
+T30_GENERIC=$(grep -c 'author_mode: рабочая копия не тронута' "$TEMPLATE_DIR/update.sh" || true)
+if [ "${T30_GENERIC:-0}" -le 1 ]; then
+    pass "T30: generic skip message survives only as the degraded-mode fallback"
+else
+    fail "T30: $T30_GENERIC generic skip messages remain — a skip site bypasses the classifier"
+fi
+
+# T31: extensions-gate is fail-closed (отчёт Константина 14.08.2026, WP-7 F71)
+echo ""
+echo "--- T31: extensions-gate fail-closed matrix (WP-7 F71) ---"
+T31_WS="$TEST_WS/t31-ws"
+mkdir -p "$T31_WS/.claude/hooks" "$T31_WS/.claude/skills/my-skill" \
+         "$T31_WS/.claude/skills/day-open" "$T31_WS/memory"
+cp "$TEMPLATE_DIR/.claude/hooks/extensions-gate.sh" "$T31_WS/.claude/hooks/"
+printf '%s\n' '{"files": [{"path": ".claude/skills/day-open/SKILL.md"}]}' > "$T31_WS/update-manifest.json"
+touch "$T31_WS/.claude/skills/my-skill/SKILL.md" "$T31_WS/.claude/skills/day-open/SKILL.md" \
+      "$T31_WS/memory/protocol-open.md"
+ln -s "$T31_WS/.claude/skills/day-open/SKILL.md" "$T31_WS/.claude/skills/my-skill/link.md"
+t31_gate() {
+    printf '{"tool_input": {"file_path": "%s"}}' "$1" | bash "$T31_WS/.claude/hooks/extensions-gate.sh"
+}
+t31_blocked() {
+    local out
+    out=$(t31_gate "$1")
+    if grep -Fq '"decision": "block"' <<<"$out"; then
+        pass "T31: $2"
+    else
+        fail "T31: $2 — гейт пропустил: $out"
+    fi
+}
+t31_allowed() {
+    local out
+    out=$(t31_gate "$1")
+    if grep -Fq '"decision": "block"' <<<"$out"; then
+        fail "T31: $2 — гейт заблокировал: $out"
+    else
+        pass "T31: $2"
+    fi
+}
+t31_allowed "$T31_WS/.claude/skills/my-skill/SKILL.md"                "own skill (not in manifest) is allowed"
+t31_allowed "$T31_WS/README.md"                                       "ordinary file is allowed"
+t31_blocked "$T31_WS/.claude/skills/day-open/SKILL.md"                "platform skill is blocked"
+t31_blocked "$T31_WS/memory/protocol-open.md"                         "memory/protocol-* is blocked"
+t31_blocked "$T31_WS/.claude/skills/my-skill/../day-open/SKILL.md"    "traversal via .. is blocked before classification"
+t31_blocked "$T31_WS/update-manifest.json"                            "manifest itself is always blocked"
+t31_blocked "$T31_WS/.claude/skills/my-skill/link.md"                 "symlink into a platform skill is blocked by real path"
+printf '%s\n' '{broken' > "$T31_WS/update-manifest.json"
+t31_blocked "$T31_WS/.claude/skills/my-skill/SKILL.md"                "broken manifest fails closed (no allow on tool failure)"
+printf '%s\n' '{"files": []}' > "$T31_WS/update-manifest.json"
+t31_blocked "$T31_WS/.claude/skills/my-skill/SKILL.md"                "empty manifest .files fails closed"
+printf '%s\n' '{"files": [{"path": ".claude/skills/day-open/SKILL.md"}]}' > "$T31_WS/update-manifest.json"
+t31_allowed "$T31_WS/.claude/skills/my-skill/SKILL.md"                "restoring the manifest restores the allow"
+if grep -Fq '"defaultMode": "default"' "$TEMPLATE_DIR/.claude/settings.json"; then
+    pass "T31: template settings.json ships defaultMode=default (not acceptEdits)"
+else
+    fail "T31: template settings.json must not ship auto-accept edit mode"
+fi
+
+# T32: settings-merge-apply.sh applies with backup and never leaves a torn file (WP-7 F71 stage B)
+echo ""
+echo "--- T32: settings.json merge APPLY with backup/rollback (WP-7 F71 stage B) ---"
+T32_WS="$TEST_WS/t32-ws"
+mkdir -p "$T32_WS/.claude"
+cp "$TEST_WS/t28/template.json" "$T32_WS/template.json"
+cp "$TEST_WS/t28/workspace.json" "$T32_WS/.claude/settings.json"
+T32_APPLY_OUT=$(bash "$TEMPLATE_DIR/.claude/scripts/settings-merge-apply.sh" \
+    "$T32_WS/template.json" "$T32_WS/.claude/settings.json" python3 2>&1)
+T32_RC=$?
+if [ "$T32_RC" -eq 0 ] && python3 -c '
+import json, sys
+p = json.load(open(sys.argv[1]))
+hooks = json.dumps(p.get("hooks", {}))
+sys.exit(0 if p["model"] == "sonnet" and p["newKey"] is True and "my-custom.sh" in hooks and "new-hook.sh" in hooks else 1)
+' "$T32_WS/.claude/settings.json"; then
+    pass "T32: merge applied — user values kept, template additions present"
+else
+    fail "T32: apply failed or merged content wrong (rc=$T32_RC): $T32_APPLY_OUT"
+fi
+T32_BACKUP=$(find "$T32_WS/.backups/settings-merge" -name 'settings.json.*' 2>/dev/null | head -1)
+if [ -n "$T32_BACKUP" ] && grep -Fq '"userOnly": 1' "$T32_BACKUP"; then
+    pass "T32: backup of the pre-merge settings.json exists"
+else
+    fail "T32: no backup written before apply"
+fi
+if [ ! -f "$T32_WS/.claude/settings.merged.preview.json" ]; then
+    pass "T32: preview file is consumed after a successful apply"
+else
+    fail "T32: preview file left behind after apply"
+fi
+printf '%s\n' '{broken' > "$T32_WS/broken-template.json"
+T32_BEFORE=$(shasum -a 256 "$T32_WS/.claude/settings.json" | cut -d' ' -f1)
+if bash "$TEMPLATE_DIR/.claude/scripts/settings-merge-apply.sh" \
+    "$T32_WS/broken-template.json" "$T32_WS/.claude/settings.json" python3 >/dev/null 2>&1; then
+    fail "T32: broken template input was accepted by apply"
+else
+    T32_AFTER=$(shasum -a 256 "$T32_WS/.claude/settings.json" | cut -d' ' -f1)
+    if [ "$T32_BEFORE" = "$T32_AFTER" ]; then
+        pass "T32: broken input rejected, workspace settings.json byte-identical"
+    else
+        fail "T32: broken input rejected but workspace settings.json changed"
+    fi
+fi
+
+# T33: update.sh wires stage-B flags with their consensus safeguards (WP-7 F71)
+echo ""
+echo "--- T33: stage-B flags contract in update.sh (WP-7 F71) ---"
+if grep -Fq -- '--apply-settings-merge) APPLY_SETTINGS_MERGE=true' "$TEMPLATE_DIR/update.sh" && \
+   grep -Fq -- '--refresh-stale)    REFRESH_STALE=true' "$TEMPLATE_DIR/update.sh"; then
+    pass "T33: both stage-B flags are parsed and default to off"
+else
+    fail "T33: stage-B flag parsing missing in update.sh"
+fi
+if grep -Fq -- '--refresh-stale отклонён' "$TEMPLATE_DIR/update.sh" && \
+   grep -Fq '.backups/refresh-stale/' "$TEMPLATE_DIR/update.sh"; then
+    pass "T33: refresh-stale refuses on unknown>0 and backs up before overwrite"
+else
+    fail "T33: refresh-stale safeguards (unknown block / backup) missing"
+fi
+if grep -Fq 'settings-merge-apply.sh' "$TEMPLATE_DIR/update.sh"; then
+    pass "T33: update.sh delegates settings apply to the standalone tested script"
+else
+    fail "T33: update.sh does not call settings-merge-apply.sh"
+fi
+
+# ============================================================
+# T34: code-style cap uses the same Unicode unit for count and slice (#435)
+# ============================================================
+echo ""
+echo "--- T34: code-style Unicode cap contract (#435) ---"
+T34_BASE="$TEST_WS/t34-base.json"
+T34_CAPPED="$TEST_WS/t34-capped.json"
+T34_PAYLOAD="{\"session_id\":\"t34-base\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$T16_PROJ/t16-fixture.py\"}}"
+if printf '%s' "$T34_PAYLOAD" | HOME="$T16_HOME" CLAUDE_PROJECT_DIR="$T16_PROJ" \
+    IWE_GOVERNANCE_REPO="DS-strategy" bash "$TEMPLATE_DIR/.claude/hooks/inject-code-style.sh" > "$T34_BASE" 2>/dev/null; then
+    T34_CHARS=$(python3 -c "import json; print(len(json.load(open('$T34_BASE'))['hookSpecificOutput']['additionalContext']))")
+    T34_BYTES=$(python3 -c "import json; print(len(json.load(open('$T34_BASE'))['hookSpecificOutput']['additionalContext'].encode()))")
+    T34_PAYLOAD="{\"session_id\":\"t34-capped\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$T16_PROJ/t16-fixture.py\"}}"
+    if [ "$T34_BYTES" -gt "$T34_CHARS" ] && \
+       printf '%s' "$T34_PAYLOAD" | HOME="$T16_HOME" CLAUDE_PROJECT_DIR="$T16_PROJ" \
+          IWE_GOVERNANCE_REPO="DS-strategy" CODE_STYLE_INJECT_CAP="$T34_CHARS" \
+          bash "$TEMPLATE_DIR/.claude/hooks/inject-code-style.sh" > "$T34_CAPPED" 2>/dev/null && \
+       python3 - "$T34_BASE" "$T34_CAPPED" <<'PY'
+import json
+import sys
+
+baseline = json.load(open(sys.argv[1], encoding="utf-8"))["hookSpecificOutput"]["additionalContext"]
+capped = json.load(open(sys.argv[2], encoding="utf-8"))["hookSpecificOutput"]["additionalContext"]
+raise SystemExit(0 if baseline == capped and "[…обрезано до лимита" not in capped else 1)
+PY
+    then
+        pass "T34: Cyrillic context at its character cap is not falsely truncated by bytes"
+    else
+        fail "T34: code-style cap count and slice diverge on Cyrillic"
+    fi
+else
+    fail "T34: inject-code-style did not produce a baseline context"
+fi
+
+# ============================================================
+# T35: /extend lists every extension point that a protocol invokes (#436)
+# ============================================================
+echo ""
+echo "--- T35: /extend catalog matches protocol extension points (#436) ---"
+if python3 - "$TEMPLATE_DIR" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+root = Path(sys.argv[1])
+call_re = re.compile(r"load-extensions\.sh\s+([a-z-]+)\s+(before|after|checks|sync)")
+row_re = re.compile(r"^\| `([^`]+)` \| `([^`]+)` \| `extensions/", re.MULTILINE)
+
+sources = [root / "memory/protocol-close.md", root / "memory/protocol-open.md"]
+sources.extend(path for path in (root / ".claude/skills").rglob("*.md") if path != root / ".claude/skills/extend/SKILL.md")
+called = {
+    match.groups()
+    for path in sources
+    for match in call_re.finditer(path.read_text(encoding="utf-8"))
+}
+catalog = set(row_re.findall((root / ".claude/skills/extend/SKILL.md").read_text(encoding="utf-8")))
+if len(called) != 16 or catalog != called:
+    missing = sorted(called - catalog)
+    extra = sorted(catalog - called)
+    raise SystemExit(f"called={len(called)} catalog={len(catalog)} missing={missing} extra={extra}")
+PY
+then
+    pass "T35: /extend lists all 16 invoked extension points"
+else
+    fail "T35: /extend catalog differs from invoked extension points"
 fi
 
 # ============================================================

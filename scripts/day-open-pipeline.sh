@@ -263,6 +263,27 @@ case "$LLM_PROXY_URL" in
   *) PROXY_IS_LOCAL=false ;;
 esac
 
+# --- Helper: reap a stale .git/HEAD.lock left by a crashed prior git process ---
+# WP-484 Ф95 (15.08): a run that dies mid-commit (any abort() after `git add`)
+# leaves this lock behind — nothing swept it, so it blocked every commit until
+# a human found it manually. Only ever removes a lock whose holder is provably
+# dead (no live git process at all); a live git process (this run's own, or a
+# genuinely concurrent one) is left untouched, matching the same PID-liveness
+# principle session-guard.sh already uses for semaphores.
+reap_stale_git_lock() {
+  local lock="$DS_STRATEGY/.git/HEAD.lock"
+  [ -f "$lock" ] || return 0
+  # Match on this repo's own path, not a bare `git` process name — the server
+  # runs unrelated git activity for other repos/users constantly, and a
+  # name-only match would find those and never reap anything.
+  if pgrep -f "git.*$DS_STRATEGY" >/dev/null 2>&1; then
+    echo "  git lock present but a git process for this repo is running — leaving it (may be legitimate)"
+    return 0
+  fi
+  echo "  stale git lock found, no live git process for this repo — removing: $lock"
+  rm -f "$lock"
+}
+
 # --- Helper: abort with notification + proxy cleanup ---
 abort() {
   local reason="$1"
@@ -425,7 +446,7 @@ if [ "$FORCE" != "true" ]; then
       DC_DONE=$(cd "$DS_STRATEGY" && git log HEAD origin/main --format="" --name-only -- "$YDAY_DAYPLAN" 2>/dev/null | head -1)
       if [ -z "$DC_DONE" ] && [ -n "$YDAY_COMMITS" ]; then
         echo "  Day Close for $YDAY not done yet (no archived DayPlan) — deferring Day Open (will regenerate after close)."
-        tg_notify "⏸ Day Open $DATE отложен: Day Close за $YDAY ещё не сделан. Пересоберётся после закрытия (или запусти с --force)."
+        tg_notify "⏸ Day Open $DATE отложен: закрытие $YDAY ещё не долетело до сервера (гонка расписаний, не поломка). Пересоберётся автоматически после закрытия (или запусти с --force)."
         # Ф32 п.11 (WP-484, 31.07): deferred ≠ done — exit 7, scheduler retries next tick.
         exit 7
       fi
@@ -870,10 +891,15 @@ fi
 # session open on the same machine at the same time.
 SG_AGENT="day-open-pipeline"
 if [ "$PROBE" != "true" ]; then
+  # WP-484 F91: explicit --slug keeps note-file resolution unambiguous when the
+  # agent has 2+ open semaphores (a stale housekeeping semaphore used to make
+  # both note-file calls fail in one run); the slug is fixed by the `open
+  # --housekeeping day-open` call above. --owner-pid from the author copy is NOT
+  # ported: this parser swallows unknown flags and misparses the PID as positional.
   bash "$IWE/scripts/session-guard.sh" open --housekeeping day-open --agent "$SG_AGENT" 2>/dev/null || true
-  bash "$IWE/scripts/session-guard.sh" note-file "$DAYPLAN_PATH" --agent "$SG_AGENT"
+  bash "$IWE/scripts/session-guard.sh" note-file "$DAYPLAN_PATH" --agent "$SG_AGENT" --slug day-open
   for f in "${ARCHIVED_PATHS[@]+"${ARCHIVED_PATHS[@]}"}"; do
-    bash "$IWE/scripts/session-guard.sh" note-file "$ARCHIVE_DIR/$(basename "$f")" --agent "$SG_AGENT"
+    bash "$IWE/scripts/session-guard.sh" note-file "$ARCHIVE_DIR/$(basename "$f")" --agent "$SG_AGENT" --slug day-open
   done
 fi
 
@@ -900,6 +926,7 @@ if [ "$PROBE" = "true" ]; then
 else
 echo "=== 6. Commit + Push ==="
 cd "$DS_STRATEGY" || abort "Cannot cd to repo"
+reap_stale_git_lock
 
 git add "$DAYPLAN_PATH"
 for f in "${ARCHIVE_TARGETS[@]+"${ARCHIVE_TARGETS[@]}"}"; do

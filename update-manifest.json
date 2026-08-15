@@ -69,11 +69,11 @@
     },
     {
       "path": ".claude/hooks/extensions-gate.sh",
-      "sha256": "53e8290974b37427b15e27797687fc4a54991fc3c9e615aa94a85bc1d655e217"
+      "sha256": "fd72b8a1badbe6234aa9b5a1629547ae624c18b691c8e94779950736dc2899a5"
     },
     {
       "path": ".claude/hooks/inject-code-style.sh",
-      "sha256": "99d028f6f863e4e35c505cce427e6a874a549025e0c00a9b4bb0d13871a0a90e"
+      "sha256": "085b2d7d9dba02576ece94d92c63c051358ff5e29e205c824f5be5fa51452060"
     },
     {
       "path": ".claude/hooks/inject-communication-style.sh",
@@ -236,6 +236,10 @@
       "sha256": "229d92059b32a772424853ee3c5ac56e2141acfa209b2d42db8879454deb033a"
     },
     {
+      "path": ".claude/scripts/classify-workspace-copy.sh",
+      "sha256": "39e14176892023597366818e5d8afeba763a72403999da362c385e0235245cd5"
+    },
+    {
       "path": ".claude/scripts/generate-rules-registry.py",
       "sha256": "814607296a21ae1ce8a21f2484fce2c3e62be23f481da172fb55f920dfab793a"
     },
@@ -248,12 +252,20 @@
       "sha256": "e1a484a888fc81be5ffa8acb3d2d375e8bec7794385982b11d4d71f24a0d69b8"
     },
     {
+      "path": ".claude/scripts/settings-merge-apply.sh",
+      "sha256": "30c13a546e7d8178ffa186813fe1f56b88edd11ae74cb5c24c35588bff0984a4"
+    },
+    {
+      "path": ".claude/scripts/settings-merge-preview.py",
+      "sha256": "85cc623ab22dbc311de1b892c22cd5e2d2ce9edc9b46cbaf97b38dc7a4cff453"
+    },
+    {
       "path": ".claude/scripts/wp-sync-bundle.sh",
       "sha256": "cbb565d904644e70489a32e5df117239283a92a76794362fcac305c72ad4fa35"
     },
     {
       "path": ".claude/settings.json",
-      "sha256": "6b813603cd749920206338e43d0fccb4b850f26e1f43ec7f9fd126dfdd8b51be"
+      "sha256": "c2d350e46293eaad3a390858be3c3d5ff8260f10ec288af411512be1611fc0e8"
     },
     {
       "path": ".claude/skills-catalog.yaml",
@@ -353,7 +365,7 @@
     },
     {
       "path": ".claude/skills/extend/SKILL.md",
-      "sha256": "d5f4cbc7a7883f1f03a33f5fd982c3941527de2359a4784fa60e2ddd168ac912"
+      "sha256": "c2c867c9d385e0025bd9e281d87d6da2eb3d85fa5bcffa021c3ed5cc42fe0def"
     },
     {
       "path": ".claude/skills/fpf/SKILL.md",
@@ -608,8 +620,12 @@
       "sha256": "9b61f9aa74d0abb0037fcf7ae8b867bb7d5b59b3c0a391ae2d89398edc3c3f33"
     },
     {
+      "path": ".github/workflows/notify-security.yml",
+      "sha256": "9ebf408d9c75c8e1a62b905339b869d476528bfccd52e99d44a50f1a3c73153b"
+    },
+    {
       "path": ".github/workflows/notify-update.yml",
-      "sha256": "7a31dd64679fe304d06ad116ccfb9b2765a0a6271d4211deab854749e792b436"
+      "sha256": "672316f4226d43912c77b9ad2b2a66c90e987f6939688e83a7bfd40859cb797f"
     },
     {
       "path": ".github/workflows/post-release-audit.yml",
@@ -628,12 +644,16 @@
       "sha256": "13c0512dafbb06fe34b0efb34311874114188121d3c0609d514775b9a5c5398c"
     },
     {
+      "path": "AGENTS-agent-blocks.md",
+      "sha256": "609c4037e9d70ea4a30c75d83626e48041e3b4746c3a217ba868a83bc6897738"
+    },
+    {
       "path": "AGENTS.md",
       "sha256": "7a94fb8ac1cb077412d7facfa0c08655e99a79503efbea3056ea586d5cd92652"
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "e823b97330e35bc416ba4bcb6efce6b180246b7eda0e03700de246a0ee84c97f"
+      "sha256": "1a4d72d70e384d2ea6b7b0b18fab93328b00809deb49c750596c8013c72d61e8"
     },
     {
       "path": "CLAUDE.md",
@@ -1241,7 +1261,7 @@
     },
     {
       "path": "memory/communication-style-base.md",
-      "sha256": "8c553c4558a403256ff585ed4760ce43b26c304526d63e3e25c79dec572d3590"
+      "sha256": "9775eda3c479f6149434469f7f925cfabb6925e5b0e410227c0070142f455f4f"
     },
     {
       "path": "memory/communication-style-downstream-template.md",
@@ -1861,15 +1881,15 @@
     },
     {
       "path": "scripts/claude-peer-adapter.sh",
-      "sha256": "f5b354a8b330ef3601636c8f6e0791d7a471962001d27090738f8902afece214"
+      "sha256": "00260975c09e2d5fc47506a5faf725f16ff432dd1adce923a728264f4bb2b67c"
     },
     {
       "path": "scripts/close-wp.sh",
-      "sha256": "57ac198f937530a9a692cf9baf98729006ae5576e628d2c19323dce6ef11dcac"
+      "sha256": "1708ba2d92f31e0770ceff9847ddfd1012776f28302134704e1fd91caa02ba92"
     },
     {
       "path": "scripts/codex-peer-adapter.sh",
-      "sha256": "69af213809d3c142d1f65c17f9614143426162cccddc8be05a346b554dd1e19d"
+      "sha256": "715b235ccad524bf170513abb59760b9b3c1d73117ca97d8475f6fa9226621bc"
     },
     {
       "path": "scripts/config/pipeline-security-whitelist.yaml",
@@ -1897,7 +1917,7 @@
     },
     {
       "path": "scripts/create-wp.sh",
-      "sha256": "53e54c4fb7fdd08691404527012e50c71210ca3f1637cc3f79a07773263ce0ac"
+      "sha256": "d915d9acaea07dfd2be43266d2136b1cae6fe9589987ea7c877277888a4cd551"
     },
     {
       "path": "scripts/day-close-lock.sh",
@@ -1925,7 +1945,7 @@
     },
     {
       "path": "scripts/day-open-pipeline.sh",
-      "sha256": "efdc97d8e09d925267c0f33ff86973f31b28be9c5f6419699abc786d36a7376c"
+      "sha256": "cbd5b60230db40e2f0c24c88a5f5dc2cf26725ad0a7de0dd47b683441e87ecfc"
     },
     {
       "path": "scripts/day-open-preflight.sh",
@@ -1981,7 +2001,7 @@
     },
     {
       "path": "scripts/hermes-peer-adapter.sh",
-      "sha256": "0d0f13fc6d00bd4c5b29df813e1b1aa9382441ad968d4ed891b03d70173dd700"
+      "sha256": "d91905470bb5cbddfafbc8cf972e1da7dd9f967136e72cc4536ad0861bc0f448"
     },
     {
       "path": "scripts/hindsight_adapter.py",
@@ -2181,7 +2201,7 @@
     },
     {
       "path": "scripts/session-guard.sh",
-      "sha256": "80226e05117a27f6c3dbb185545afe5d4aa397c294d7e1b2200c301c642c959b"
+      "sha256": "37f0b652ac6e3fcdc64dc5ce3f1b31892e05f28e73e545a418cb5e123b6a6c2a"
     },
     {
       "path": "scripts/settings-promote.sh",
@@ -2268,12 +2288,20 @@
       "sha256": "2265e5dda20c17e17ea66d2c870fa0f97e3a053f741239fe61beaa785f944a58"
     },
     {
+      "path": "scripts/tests/test_create_wp_number_padding.py",
+      "sha256": "fc5c500573c067fb1e6882834d2e0a1d7cd287446f9df5c9b49c1b404362e201"
+    },
+    {
       "path": "scripts/tests/test_create_wp_registry_coherence.sh",
       "sha256": "852828b4b741b9922fd0a72b5089214a3ee1663874d7950976ed8115958adb69"
     },
     {
       "path": "scripts/tests/test_create_wp_repeat_and_cwd.sh",
       "sha256": "926603ebb29d83b7e3db5e0998182e1cc8c8b756820e3b99950d24071cbb093a"
+    },
+    {
+      "path": "scripts/tests/test_create_wp_weekplan_writer.py",
+      "sha256": "126dabff6e7e72c7564e2d0acfdf0449eca9adf06e76010f1175c9b02fe70fc8"
     },
     {
       "path": "scripts/tests/test_critical_alert_contract.sh",
@@ -2301,15 +2329,27 @@
     },
     {
       "path": "scripts/tests/test_issues_413_418.py",
-      "sha256": "deccd502f68f06f7d95c8382e5daf25bb0ce62bd5df2ac3e9729f91c4a7f7d4e"
+      "sha256": "23a1581ea39df97ebda73ae5faea1b24b1c331ee3cd0ff8daa16a46669a83b7e"
     },
     {
       "path": "scripts/tests/test_session_guard_hypothesis_gate.sh",
       "sha256": "45d241902da232578652c576f3240088936fb165a4ada29917089e802df61edb"
     },
     {
+      "path": "scripts/tests/test_update_delivery_ref.sh",
+      "sha256": "7bebb678d80a13c5080e89c335b0d4fb88727ce0f6a3dd6db5fc44493af42b7c"
+    },
+    {
+      "path": "scripts/tests/test_update_deprecated_mirror_guard.sh",
+      "sha256": "7cf9f47166c53d47064fb48d5406f64adacb8296b5782e3563f64796e0a499d5"
+    },
+    {
       "path": "scripts/tests/test_update_install_path_guard.sh",
       "sha256": "d8e59a1836aaea9642f8a380c2dad3de2ae29104c1db337077eeb92b59f966d6"
+    },
+    {
+      "path": "scripts/tests/test_update_settings_merge_drift.sh",
+      "sha256": "0bbff3338ba5176f2bf8d62c8d18de80bdaff7c8dde264ca6c0de7b3e0d34906"
     },
     {
       "path": "scripts/tests/test_upgrade_worktree_cleanup.sh",
@@ -2393,7 +2433,7 @@
     },
     {
       "path": "translation/en-doc-style.md",
-      "sha256": "7e04f50cf85323f0a16b7e749dc02cf805b71197daea2d56880405367e050642"
+      "sha256": "eb404961303d4d48cefef78ddf543edc6effc03b8f07e25ac30eae36070c39c9"
     },
     {
       "path": "translation/glossary-v0.1.csv",
@@ -2401,11 +2441,11 @@
     },
     {
       "path": "update.sh",
-      "sha256": "27ed2bf7dc8722f1d43932241f5b7b44c7bd70494a72e469b49768aaf96433bf"
+      "sha256": "0ad89d565a318539dfbbb6f008ad6284b4579268bdbf57394256511f78e4532d"
     }
   ],
   "excluded_paths": [
-    "AGENTS-agent-blocks.md",
+    ".github/workflows/nightly-template-audit.yml",
     "docs/developer/README.md",
     "docs/developer/card-template.md",
     "docs/developer/code-style.md",
@@ -2427,8 +2467,6 @@
     "scripts/tests/conftest.py",
     "scripts/tests/test_agent_dashboard.py",
     "scripts/tests/test_copy_to_aisystant.py",
-    "scripts/tests/test_create_wp_number_padding.py",
-    "scripts/tests/test_create_wp_weekplan_writer.py",
     "scripts/tests/test_day_close_prepare.py",
     "scripts/tests/test_delivery_content.py",
     "scripts/tests/test_delivery_formal.py",

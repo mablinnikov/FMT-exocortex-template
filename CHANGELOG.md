@@ -136,10 +136,13 @@ Refs: WP-NNN
 
 
 
-## [Unreleased] — обновлено 2026-08-14
+
+## [Unreleased] — обновлено 2026-08-15
 
 ### Added
 
+- [behavior] `14ef9f6` feat(update): этап Б конвейера обновления — --apply-settings-merge и --refresh-stale
+- [behavior] `59e859d` feat(update): этап А наблюдаемости конвейера обновления — классификация author_mode-пропусков и предпросмотр слияния settings.json
 - `82394ba` feat(release): классификация CHANGELOG (security/migration/behavior/optional)
 - `c578eb8` feat: promote day-open-pipeline.sh to platform
 - `0c1cfba` feat(wp518): link work packages to hypotheses
@@ -148,6 +151,9 @@ Refs: WP-NNN
 
 ### Changed
 
+- [optional] `1bcfdf2` chore(manifest): перегенерация после автосинка адаптеров 2026-08-15 (B2 gate)
+- [optional] `c26b8a7` chore(manifest): перегенерация — settings-merge-apply.sh попал в git после генерации (B2)
+- [optional] `0063969` chore(manifest): перегенерация после no-history-фикса классификатора и session-guard (B2 gate)
 - [behavior] `c370fde` docs(changelog): задокументировать конвенцию Changelog-Tag trailer
 - `9bf3db4` Merge pull request #421 from TserenTserenov/codex/fix-manifest-after-420-delivery
 - `88e447c` Merge pull request #420 from TserenTserenov/codex/fix-issues-413-418-main
@@ -162,6 +168,20 @@ Refs: WP-NNN
 
 ### Fixed
 
+- `update.sh` распознаёт git-зеркало с remote `upstream` и не удаляет из него файлы, которые ещё должен удалить канон (#428).
+- Расхождение шаблонного и рабочего `.claude/settings.json` теперь видно после предварительной синхронизации форка; безопасный предпросмотр слияния не зависит от списка скачанных файлов (#399).
+- Загрузка манифеста и файлов закрепляется на одном commit SHA, поэтому push в `main` не создаёт ложный отказ проверки целостности (#398).
+- `create-wp.sh` больше не создаёт pending-архив, а `close-wp.sh` закрывает `WP-009` по bare ID `9` без второго контекстного файла (#425, #431).
+- `update.sh`: repair-pass снова работает в системном Bash 3.2 macOS; один ремонт закрывает #433 и #438 без потери диагностик.
+- `inject-code-style.sh`: ограничение контекста считает и обрезает Unicode-символы в одной единице, поэтому кириллица не вызывает ложную обрезку (#435).
+- `/extend`: каталог включает все 16 реально вызываемых точек расширения, в том числе проверки day-open, month-close и strategy-session (#436).
+- `AGENTS-agent-blocks.md` снова входит в поставку; манифест пересобран по актуальному дереву (#437).
+- CI-workflow ночного аудита явно помечен как недоставляемый, поэтому собственный валидатор манифеста больше не отвергает релиз (#423).
+- Seed-копия `day-open-pipeline.sh` синхронизирована с каноническим скриптом, поэтому новая установка не получает отставший конвейер (#427).
+- `cdb7c29` fix(day-open): reap stale .git/HEAD.lock before commit + clearer race-guard message (WP-484 Ф95)
+- [behavior] `978d382` fix(update): --apply-settings-merge работает и на повторном прогоне
+- [security] `4a934aa` fix(security): defaultMode=default вместо acceptEdits + fail-closed extensions-gate
+- `6ec4c40` fix(day-open): push с повтором fetch+rebase против гонки с занятым origin (промоция из авторского IWE, v0.38.3)
 - `b4f24c6` fix(dayopen): коммитить только файлы этого прогона, не весь archive/day-plans (WP-484)
 - `a6e4c36` fix(#405): treat cancelled WPs as terminal (#422)
 - `6c3d493` fix: regenerate manifest after #420
