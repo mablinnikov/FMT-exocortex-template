@@ -51,9 +51,11 @@ ALL_STATUSES = ACTIVE_STATUSES | CLOSED_STATUSES
 def norm_status(token: str) -> str:
     return token.replace("\ufe0f", "")
 
-# Строка-РП: `| 312 | P2 | **Название** | 🔄 | repo | 8h |`
-# Done-вариант: `| ~~306~~ | ~~P3~~ | ~~Название~~ | ✅ | ~~repo~~ | ~~4h~~ |`
-ROW_RE = re.compile(r"^\|\s*(?:~~)?(?:\*\*)?(\d{1,4})(?:\*\*)?(?:~~)?\s*\|")
+# Строка-РП: `| 312 | ... |` или legacy-вариант `| WP-312 | ... |`.
+# Done-вариант: `| ~~WP-306~~ | ~~P3~~ | ~~Название~~ | ✅ | ~~repo~~ | 4h |`
+ROW_RE = re.compile(
+    r"^\|\s*(?:~~)?(?:\*\*)?(?:WP-)?(\d{1,4})(?:\*\*)?(?:~~)?\s*\|"
+)
 
 # Имя файла WP в inbox/archive: WP-NNN-... .md или WP-NNN.md или папка WP-NNN/
 WP_NAME_RE = re.compile(r"^WP-(\d{1,4})(?:[-.].*|/)?$")

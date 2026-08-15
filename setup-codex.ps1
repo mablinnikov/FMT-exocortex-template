@@ -1,4 +1,4 @@
-[CmdletBinding(SupportsShouldProcess = $true)]
+﻿[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [string]$Workspace = (Split-Path -Parent $PSScriptRoot),
     [string]$GitHubUser = "",
@@ -50,6 +50,20 @@ function Expand-IwePlaceholders {
     foreach ($entry in $values.GetEnumerator()) {
         $Text = $Text.Replace($entry.Key, [string]$entry.Value)
     }
+    return $Text
+}
+
+function Convert-ToCodexAgentInstructions {
+    param([string]$Text)
+
+    $Text = $Text.Replace(
+        '> **Сгенерировано `scripts/sync-agent-instructions.sh` (WP-394 Ф4.2). НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ.**',
+        '> **Codex-развёртывание:** файл создаёт `FMT-exocortex-template/setup-codex.ps1`. НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ.'
+    )
+    $Text = $Text.Replace(
+        '> Общее ядро → блок `<!-- SYNC-CORE -->` в `CLAUDE.md`. Агент-специфика → `AGENTS-agent-blocks.md`.',
+        '> Канонический источник → `FMT-exocortex-template/AGENTS.md`. Агент-специфика → `AGENTS-agent-blocks.md`.'
+    )
     return $Text
 }
 
@@ -162,6 +176,7 @@ $adapterHeader = @'
 
 '@
 $agentsSource = Get-Content -LiteralPath (Join-Path $TemplateDir 'AGENTS.md') -Raw -Encoding UTF8
+$agentsSource = Convert-ToCodexAgentInstructions $agentsSource
 $agentsContent = Expand-IwePlaceholders ($adapterHeader + $agentsSource)
 Write-Utf8File -Path (Join-Path $Workspace 'AGENTS.md') -Content $agentsContent
 
@@ -173,7 +188,7 @@ $memoryIndex = Join-Path $Workspace 'memory\MEMORY.md'
 if (Test-Path -LiteralPath $memoryIndex) {
     $memoryText = Get-Content -LiteralPath $memoryIndex -Raw -Encoding UTF8
     $memoryText = Expand-IwePlaceholders $memoryText
-    $memoryText = $memoryText.Replace((Join-Path $Workspace 'CLAUDE.md'), (Join-Path $Workspace 'AGENTS.md'))
+    $memoryText = $memoryText.Replace('CLAUDE.md', 'AGENTS.md')
     Write-Utf8File -Path $memoryIndex -Content $memoryText
 }
 
@@ -256,11 +271,15 @@ name: iwe-day-close
 description: Close the current IWE workday and preserve context. Use when the user asks to close the day, summarize results, or prepare tomorrow's handoff.
 ---
 
+Before updating the DayPlan, read `params.yaml → multiplier_enabled`. When it is `true`, obtain today's physical time from WakaTime with the first available CLI: `$env:USERPROFILE\.wakatime\wakatime-cli-windows-amd64.exe`, `~/.wakatime/wakatime-cli`, or `wakatime-cli`. Run `--today`, then calculate the IWE multiplier as actual completed WP budget divided by WakaTime hours and include both values in the day result. If WakaTime is unavailable or returns zero, report that explicitly and do not invent a multiplier. Never print or copy the WakaTime API key. When the parameter is `false`, omit WakaTime and the multiplier completely.
+
 1. Read today's DayPlan, the current WeekPlan, and the files changed during the day.
 2. Separate completed results, unfinished work, decisions, captures, blockers, and tomorrow's first action.
 3. Update or archive the DayPlan according to the existing `DS-strategy` structure.
 4. Update `memory/MEMORY.md` only with durable context needed by future sessions.
-5. Report uncommitted repository changes. Do not commit or push unless the user explicitly requests it.
+5. FatSecret and Loop are completed by the user before sleep, after IWE Day Close. Do not wait for them, ask for confirmation, or mark them incomplete/partial during Day Close; record them as a post-close routine.
+6. After Day Close, commit and push the related `DS-strategy` changes automatically. Stage only explicitly reviewed files; never use `git add .`, `git add -A`, or `git add -u`. Include the Codex attribution trailer when Codex changed files.
+7. If commit or push fails, report the cause and leave the repository in a recoverable state. Report any unrelated uncommitted changes that were intentionally excluded.
 '@
 Write-CodexSkill -Name 'iwe-day-close' -Content $dayCloseSkill
 
