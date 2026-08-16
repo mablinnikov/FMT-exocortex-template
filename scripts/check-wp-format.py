@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-check-wp-format.py — линтер WP-REGISTRY.md (WP-7 T2 + name contamination guard)
+check-wp-format.py — линтер WP-REGISTRY.md
 
-Проверяет два класса нарушений:
+Проверяет три класса нарушений:
   T2. Форматирование done-строк: ✅/↗️/📦 без полного ~~strikethrough~~
   NC. Загрязнение имён: служебные данные в колонке «Название»
+  ID. Неканонический номер в колонке «#»: ожидается чистое число без `WP-` и паддинга
 
 Использование:
   python3 check-wp-format.py [path/to/WP-REGISTRY.md] [--fix] [--exit-nonzero]
 
-  --fix          автоматически исправить NC-нарушения (T2 исправлять рискованно)
+  --fix          автоматически исправить безопасные NC- и ID-нарушения
   --exit-nonzero выйти с кодом 1 при любых нарушениях (для pre-commit hook)
 
 Без аргументов: читает $IWE/DS-strategy/docs/WP-REGISTRY.md или ${IWE_GOVERNANCE_REPO:-DS-strategy}/...
@@ -52,6 +53,26 @@ def parse_cells(line):
     parts = line.strip().split("|")
     # parts[0] пустой (до первого |), parts[-1] пустой (после последнего |)
     return [p.strip() for p in parts[1:-1]]
+
+
+def registry_data_row_indices(lines):
+    """Индексы строк данных только в таблицах реестра с заголовком `| # | ...`."""
+    result = set()
+    in_registry_table = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("| #"):
+            in_registry_table = True
+            continue
+        if not in_registry_table:
+            continue
+        if stripped.startswith("|---"):
+            continue
+        if is_table_row(line):
+            result.add(i)
+            continue
+        in_registry_table = False
+    return result
 
 # Фолбэк-индексы для канонической 6-колоночной схемы
 # (# | P | Название | Ст | Репо | Бюджет) — используются только если заголовок
@@ -151,6 +172,46 @@ def check_nc(cells, line_num, name_col):
             break  # Одно сообщение на строку достаточно
     return issues
 
+
+def normalize_id_cell(id_cell):
+    """Вернуть каноническую ячейку номера или None, если это не строка РП.
+
+    В колонке «#» хранится чистое число (`8`), а не идентификатор (`WP-008`).
+    Для закрытой строки сохраняется внешнее зачёркивание: `~~8~~`.
+    """
+    stripped = id_cell.strip()
+    struck = stripped.startswith("~~") and stripped.endswith("~~")
+    if struck:
+        stripped = stripped[2:-2].strip()
+    if stripped.startswith("**") and stripped.endswith("**"):
+        stripped = stripped[2:-2].strip()
+
+    match = re.fullmatch(r"(?:WP-)?0*(\d+)", stripped)
+    if not match:
+        return None
+    number = int(match.group(1))
+    if number < 1:
+        return None
+    canonical = str(number)
+    return f"~~{canonical}~~" if struck else canonical
+
+
+def check_id(cells, line_num, number_col):
+    """ID: колонка «#» должна содержать чистое число без префикса и паддинга."""
+    if number_col >= len(cells):
+        return []
+    id_cell = cells[number_col]
+    canonical = normalize_id_cell(id_cell)
+    if canonical is None or id_cell == canonical:
+        return []
+    return [{
+        "line": line_num,
+        "type": "ID",
+        "cell_index": number_col,
+        "cell_value": id_cell[:60],
+        "message": f"неканонический номер «{id_cell}»; ожидается «{canonical}»",
+    }]
+
 def clean_name_cell(name_cell):
     """Очистить колонку «Название» от служебных данных."""
     cleaned = name_cell
@@ -207,13 +268,15 @@ def process_file(registry_path, fix=False, fix_t2=False, exit_nonzero=False):
     if warning:
         print(f"⚠️  {warning}", file=sys.stderr)
     name_col = indices["Название"]
+    number_col = indices["#"]
 
     all_issues = []
     new_lines = list(lines)
+    registry_rows = registry_data_row_indices(lines)
 
     for i, line in enumerate(lines):
         line_num = i + 1
-        if not is_table_row(line):
+        if i not in registry_rows:
             continue
         cells = parse_cells(line)
         if len(cells) < 3:
@@ -221,8 +284,10 @@ def process_file(registry_path, fix=False, fix_t2=False, exit_nonzero=False):
 
         t2_issues = check_t2(cells, line_num, indices)
         nc_issues = check_nc(cells, line_num, name_col)
+        id_issues = check_id(cells, line_num, number_col)
         all_issues.extend(t2_issues)
         all_issues.extend(nc_issues)
+        all_issues.extend(id_issues)
 
         if fix_t2 and t2_issues and is_done_row(cells):
             parts = new_lines[i].rstrip("\n").split("|")
@@ -269,6 +334,15 @@ def process_file(registry_path, fix=False, fix_t2=False, exit_nonzero=False):
                 parts[name_part] = f" {cleaned_cell} "
                 new_lines[i] = "|".join(parts) + "\n"
 
+        if fix and id_issues:
+            parts = new_lines[i].rstrip("\n").split("|")
+            number_part = number_col + 1
+            if number_part < len(parts):
+                canonical = normalize_id_cell(parts[number_part].strip())
+                if canonical is not None:
+                    parts[number_part] = f" {canonical} "
+                    new_lines[i] = "|".join(parts) + "\n"
+
     if (fix or fix_t2) and any(new_lines[i] != lines[i] for i in range(len(lines))):
         with open(registry_path, "w", encoding="utf-8") as f:
             f.writelines(new_lines)
@@ -277,10 +351,12 @@ def process_file(registry_path, fix=False, fix_t2=False, exit_nonzero=False):
     # Сводка
     t2_count = sum(1 for iss in all_issues if iss["type"] == "T2")
     nc_count = sum(1 for iss in all_issues if iss["type"] == "NC")
+    id_count = sum(1 for iss in all_issues if iss["type"] == "ID")
 
     print(f"\ncheck-wp-format.py — {registry_path}")
     print(f"  T2 (форматирование done-строк): {t2_count} нарушений")
     print(f"  NC (загрязнение имён):          {nc_count} нарушений")
+    print(f"  ID (формат номера):              {id_count} нарушений")
 
     if all_issues:
         print("\nДетали:")

@@ -63,13 +63,14 @@ done
 [ -z "$WP_NUM" ] && { echo "FAIL: no WP created"; exit 1; }
 
 WP_ID="WP-$(printf '%03d' "$WP_NUM")"
+WP_NUMBER=$((10#$WP_NUM))
 
 echo "Created: $WP_ID"
 
 # Проверка 5 мест
 echo "Checking 5 locations..."
 
-# 1. inbox/WP-N/WP-N.md
+# 1. inbox/WP-NNN/WP-NNN.md
 [ -f "inbox/$WP_ID/$WP_ID.md" ] || { echo "FAIL: $WP_ID.md not found"; exit 1; }
 grep -q "^title:" "inbox/$WP_ID/$WP_ID.md" || { echo "FAIL: title not in inbox"; exit 1; }
 echo "✓ inbox/$WP_ID/$WP_ID.md"
@@ -90,9 +91,9 @@ echo "✓ WeekPlan ($WEEKPLAN)"
 grep -q "$WP_ID" "docs/Strategy.md" || { echo "WARN: $WP_ID not in Strategy.md (may be intentional)"; }
 echo "✓ Strategy.md (checked)"
 
-# 4. WP-REGISTRY.md (должен быть с паддингом WP-NNN)
+# 4. WP-REGISTRY.md: колонка «#» хранит чистое число без WP-префикса и паддинга.
 [ -f "docs/WP-REGISTRY.md" ] || { echo "FAIL: WP-REGISTRY.md not found"; exit 1; }
-grep -q "$WP_ID" "docs/WP-REGISTRY.md" || { echo "FAIL: $WP_ID not in WP-REGISTRY"; exit 1; }
+grep -q "| $WP_NUMBER |" "docs/WP-REGISTRY.md" || { echo "FAIL: $WP_NUMBER not in WP-REGISTRY"; exit 1; }
 echo "✓ WP-REGISTRY.md"
 
 # 5. build-active-wp.py доступен (проверка пути)

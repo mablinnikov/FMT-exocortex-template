@@ -11,9 +11,10 @@
 **Стандартный flow при закрытии РП:**
 1. Обновить `inbox/WP-NNN/WP-NNN.md` (`status: done`, `closed_date`).
 2. Обновить строку в `docs/WP-REGISTRY.md` (статус `✅`, strikethrough).
+   - **Формат номера:** колонка `#` хранит чистое число без префикса и паддинга (`8`, `~~8~~` для закрытого РП). `WP-008` используется в путях, заголовках и ссылках.
    - **Формат зачёркивания:** `| ~~430~~ | ~~P2~~ | ~~название~~ | ✅ | ~~репо~~ | ~~бюджет~~ |`
    - Зачёркивать: номер, проект, репо, бюджет. **Не зачёркивать:** название (`~~` уже на нём), статус ✅.
-   - Автопроверка: `python3 scripts/check-wp-format.py docs/WP-REGISTRY.md`
+   - Автопроверка: `python3 scripts/check-wp-format.py docs/WP-REGISTRY.md --exit-nonzero`
    - Массовое исправление: `bash scripts/fix-strikethrough.sh`
 3. `python3 scripts/build-active-wp.py` (перегенерация `current/active-wp.md`).
 4. `git add` всех трёх файлов + commit.

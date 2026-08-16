@@ -51,8 +51,9 @@ ALL_STATUSES = ACTIVE_STATUSES | CLOSED_STATUSES
 def norm_status(token: str) -> str:
     return token.replace("\ufe0f", "")
 
-# Строка-РП: `| 312 | ... |` или legacy-вариант `| WP-312 | ... |`.
-# Done-вариант: `| ~~WP-306~~ | ~~P3~~ | ~~Название~~ | ✅ | ~~repo~~ | 4h |`
+# Каноническая строка РП: `| 312 | ... |`; legacy-вариант `| WP-312 | ... |`
+# принимается для диагностики и миграции, но в active-wp.md всегда нормализуется.
+# Done-вариант: `| ~~306~~ | ~~P3~~ | ~~Название~~ | ✅ | ~~repo~~ | 4h |`
 ROW_RE = re.compile(
     r"^\|\s*(?:~~)?(?:\*\*)?(?:WP-)?(\d{1,4})(?:\*\*)?(?:~~)?\s*\|"
 )
@@ -83,6 +84,14 @@ def parse_registry(text: str) -> tuple[list[dict], list[str]]:
         status_raw = cols[3].replace("~~", "").strip()
         token = status_raw.split()[0] if status_raw else ""
         status = norm_status(token)
+        number_cell = cols[0]
+        number_struck = number_cell.startswith("~~") and number_cell.endswith("~~")
+        canonical_number = f"~~{wp}~~" if number_struck else str(wp)
+        if number_cell != canonical_number:
+            problems.append(
+                f"WP-{wp} (строка {lineno}): неканонический номер {number_cell!r}; "
+                f"в колонке «#» ожидается {canonical_number!r}."
+            )
         if status not in ALL_STATUSES:
             problems.append(
                 f"WP-{wp} (строка {lineno}): неизвестный статус {token!r} — строка учтена "
@@ -101,10 +110,13 @@ def parse_registry(text: str) -> tuple[list[dict], list[str]]:
     return rows, problems
 
 
-def clean_status_in_row(raw: str, status: str) -> str:
-    """Заменяет содержимое колонки «Ст» на очищенный статус и обрезает лишние колонки."""
+def clean_status_in_row(raw: str, status: str, wp: int) -> str:
+    """Нормализует номер/статус и обрезает лишние колонки производной строки."""
     parts = raw.split("|")
     if len(parts) >= 6:
+        number_cell = parts[1].strip()
+        number_struck = number_cell.startswith("~~") and number_cell.endswith("~~")
+        parts[1] = f" ~~{wp}~~ " if number_struck else f" {wp} "
         parts[4] = f" {status} "
         parts = parts[:7]
     return "|".join(parts) + "|"
@@ -128,7 +140,7 @@ def render(rows: list[dict]) -> str:
         out = ["| # | P | Название | Ст | Репо | Бюджет |",
                "|---:|---|------------------|:--:|------------------|------:|"]
         for r in items:
-            out.append(clean_status_in_row(r["raw"], r["status_display"]))
+            out.append(clean_status_in_row(r["raw"], r["status_display"], r["wp"]))
         return "\n".join(out) + "\n"
 
     lines = [

@@ -189,7 +189,7 @@
     },
     {
       "path": ".claude/rules-lazy/drift-guard.md",
-      "sha256": "8099ecc27c790619169409236c470300ff249f9614828969cb1c7a71b92109da"
+      "sha256": "3c3c3cbb18ed4bb87e2a3f6276ba277acd98b2bc626f8483d83321b2f4f6133f"
     },
     {
       "path": ".claude/rules-lazy/hooks-bypass-gate.md",
@@ -649,15 +649,15 @@
     },
     {
       "path": "AGENTS.md",
-      "sha256": "7a94fb8ac1cb077412d7facfa0c08655e99a79503efbea3056ea586d5cd92652"
+      "sha256": "747a62ddce5d269abed25e981075c4340641872442ea517ac5f86fa593f1bc8c"
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "1a4d72d70e384d2ea6b7b0b18fab93328b00809deb49c750596c8013c72d61e8"
+      "sha256": "105cd6aec9c647de0de3278ee2e988a674cc5e852535e9ed6dcb96bd12c8ab8e"
     },
     {
       "path": "CLAUDE.md",
-      "sha256": "ca9f3bb7019e288a20067bcd10faa8f8ecd94d48813c19dd09fea57661f2694d"
+      "sha256": "a6ecc9128bbbb1a8580ee304831d0e4d74f7ffc3ca88c37c47c1d336b1bac4a1"
     },
     {
       "path": "ONTOLOGY.md",
@@ -1821,7 +1821,7 @@
     },
     {
       "path": "scripts/build-active-wp.py",
-      "sha256": "ab896aa1b981955bc42daa507abc44da084a0d0328a49dfc73c2c4d19341d974"
+      "sha256": "c8d8eadd80b15ad8b9d092f1c23d7ec173898016f69604322918ab699832f4e8"
     },
     {
       "path": "scripts/changelog-append.sh",
@@ -1873,7 +1873,7 @@
     },
     {
       "path": "scripts/check-wp-format.py",
-      "sha256": "dc069113a57be36f81661a2e56ef2ac49142aa86c7a86b6e8acecb5501c70400"
+      "sha256": "d1f6f7c2f432a46415fc75bf43a9171d79ce15433151e417a90d296b1b27c603"
     },
     {
       "path": "scripts/check-wp-transfer-completeness.sh",
@@ -2293,7 +2293,7 @@
     },
     {
       "path": "scripts/tests/test_create_wp_registry_coherence.sh",
-      "sha256": "852828b4b741b9922fd0a72b5089214a3ee1663874d7950976ed8115958adb69"
+      "sha256": "f640a492526591228a33bcb6b1119e0229add3cefa84629db26141b06775d092"
     },
     {
       "path": "scripts/tests/test_create_wp_repeat_and_cwd.sh",
@@ -2354,6 +2354,10 @@
     {
       "path": "scripts/tests/test_upgrade_worktree_cleanup.sh",
       "sha256": "fffd6c65017455af0cee8af1d05595d773cdc8776738286aa488b0086a972192"
+    },
+    {
+      "path": "scripts/tests/test_wp_registry_number_format.py",
+      "sha256": "3b9c34d5adbf55d3dee187a6eca74891f7731bc602aaf8bc58b40ea641e89073"
     },
     {
       "path": "scripts/tests/validate_manifest_coverage.sh",

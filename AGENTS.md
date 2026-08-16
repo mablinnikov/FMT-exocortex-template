@@ -40,6 +40,8 @@ Discrepancy found (file ≠ plan, stale content): **report to pilot, do not sile
 
 **Колонка «Название» в WP-REGISTRY содержит ТОЛЬКО имя артефакта ≤80 символов** — без дат, ссылок на сессии, метрик, SHA и прочих служебных данных.
 
+**Колонка «#» содержит только целое число без префикса и ведущих нулей:** `8`, а не `WP-8`, `WP-008` или `008`. Формат `WP-008` используется в путях, заголовках и ссылках. Перед коммитом, затрагивающим реестр, запустить `check-wp-format.py ... --exit-nonzero` и пересобрать `active-wp.md` через `build-active-wp.py`.
+
 **Куда писать остальное:** итог закрытия → `## Закрытие` в `archive/wp-contexts/`; фазы/прогресс → frontmatter `inbox/WP-NNN/WP-NNN.md` (всегда папка — WP-434), при смене статуса фаз обновлять frontmatter, НЕ имя реестра. Полный текст и примеры ✅/❌ → `memory/reference/agent-core.md`.
 
 ## WP Context Scope — Umbrella РП
