@@ -8,7 +8,7 @@
 # check-wp-transfer-completeness.sh
 #
 # Шаги:
-#   1. Найти inbox/WP-{N}/WP-{N}.md (папочная конвенция WP-434);
+#   1. Найти inbox/WP-{NNN}/WP-{NNN}.md (папочная конвенция WP-434);
 #      fallback — устаревший плоский inbox/WP-{N}-*.md.
 #   2. Прогнать check-wp-transfer-completeness.sh (warn-not-block).
 #   3. Обновить frontmatter: status → done.

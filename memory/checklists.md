@@ -97,7 +97,7 @@ description: "Операционный файл памяти IWE"
 
 > **ПРАВИЛО:** Перед выполнением Close — ПЕРЕЧИТАЙ CLAUDE.md § 2 чеклист Close. Не выполняй по памяти.
 
-- [ ] WP Context File создан/обновлён в `DS-strategy/inbox/WP-{N}/WP-{N}.md`
+- [ ] WP Context File создан/обновлён в `DS-strategy/inbox/WP-{NNN}/WP-{NNN}.md`
   - Текущее состояние, решения, следующие шаги
   - **Создавать при ПЕРВОМ Close**, не откладывать
 - [ ] Если создано новое репо → MAPSTRATEGIC.md (roadmap фаз)

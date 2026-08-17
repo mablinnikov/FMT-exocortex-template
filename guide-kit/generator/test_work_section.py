@@ -158,6 +158,16 @@ class TestIweSection:
         assert "inbox/WP-401/WP-401.md" in markdown
         assert log[0]["note"] is None
 
+    def test_links_single_digit_wp_to_zero_padded_context_path(self, base):
+        os.makedirs(os.path.join(base, "inbox", "WP-007"))
+        with open(os.path.join(base, "inbox", "WP-007", "WP-007.md"), "w", encoding="utf-8") as fh:
+            fh.write("---\nwp: 7\n---\n")
+        rows = "| 🟡 | Т | 1 | **WP-7** — Техническое доведение IWE | 2 | in_progress |\n"
+        rel = _write_dayplan(base, rows)
+        markdown, log = build_iwe_section(base, rel)
+        assert "inbox/WP-007/WP-007.md" in markdown
+        assert log[0]["note"] is None
+
     def test_no_link_when_wp_file_absent(self, base):
         rows = "| 🟡 | Т | 1 | **WP-999** — контекст | 1 | pending |\n"
         rel = _write_dayplan(base, rows)

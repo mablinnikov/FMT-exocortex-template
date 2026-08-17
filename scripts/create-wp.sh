@@ -268,7 +268,7 @@ print(result)
 " 2>/dev/null || echo "wp-$(echo "$TITLE" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-' | cut -c1-30)")
 fi
 
-# Inbox convention (WP-434): every WP is a folder inbox/WP-N/ with main file WP-N.md.
+# Inbox convention (WP-434): every WP is a folder inbox/WP-NNN/ with main file WP-NNN.md.
 # Slug lives in the title/frontmatter.  Архив появляется только при закрытии:
 # предварительный stub конфликтовал с close-wp.sh и мог затереть контекст.
 WP_DIR="$INBOX/WP-${WP_ID}"

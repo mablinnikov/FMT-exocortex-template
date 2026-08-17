@@ -88,5 +88,5 @@ description: "Операционный файл памяти IWE"
 
 ## WP Context Files
 
-> Все context files: `DS-strategy/inbox/WP-{N}/WP-{N}.md` (всегда папка — WP-434)
+> Все context files: `DS-strategy/inbox/WP-{NNN}/WP-{NNN}.md` (номер дополнен ведущими нулями до трёх цифр; всегда папка — WP-434)
 > Архив: `DS-strategy/archive/wp-contexts/`

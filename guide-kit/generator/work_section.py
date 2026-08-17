@@ -145,10 +145,11 @@ def _parse_dayplan_rows(text: str) -> list[dict]:
 
 
 def _find_wp_file(base: str, wp_num: str) -> str | None:
-    """inbox/WP-{N}/WP-{N}.md — a documented, blocking convention of this
+    """inbox/WP-{NNN}/WP-{NNN}.md — a documented, blocking convention of this
     template (CLAUDE.md "Правило inbox: один РП = одна папка"), not a guess.
     Absent on disk → no link, not an invented path."""
-    rel = os.path.join("inbox", f"WP-{wp_num}", f"WP-{wp_num}.md")
+    wp_id = wp_num.zfill(3)
+    rel = os.path.join("inbox", f"WP-{wp_id}", f"WP-{wp_id}.md")
     return rel if os.path.isfile(os.path.join(base, rel)) else None
 
 

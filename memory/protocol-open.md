@@ -132,7 +132,7 @@ python3 "${IWE_SCRIPTS:-$HOME/IWE/scripts}/artifactor.py" "$REQUEST"
 
 **Шаг 2.** Дождаться согласования. [[gate:AR.001]]
 
-**Шаг 3.** Определить файлы/репо. Context file (`<governance-repo>/inbox/WP-{N}/WP-{N}.md`, например DS-strategy) — прочитать. Иерархия доверия: код → документы → WP context. [[narrative]]
+**Шаг 3.** Определить файлы/репо. Context file (`<governance-repo>/inbox/WP-{NNN}/WP-{NNN}.md`, например DS-strategy; номер дополнен ведущими нулями до трёх цифр) — прочитать. Иерархия доверия: код → документы → WP context. [[narrative]]
 
 **Шаг 4.** Регистрация в `<governance-repo>/inbox/open-sessions.log` (например DS-strategy): `YYYY-MM-DD HH:MM | WP-N | модель | описание`. Исключения — не регистрировать. [[gate]]
 
