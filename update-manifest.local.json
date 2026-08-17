@@ -1,0 +1,7 @@
+{
+  "_comment": "Fork-local manifest. update.sh replaces update-manifest.json wholesale, but leaves this file alone, so Windows support that has no upstream counterpart is declared here instead of in the main manifest.",
+  "excluded_paths": [
+    "setup-codex.ps1",
+    "setup/install-windows-tasks.ps1"
+  ]
+}
