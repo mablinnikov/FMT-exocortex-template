@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "version": "0.38.3",
+  "version": "0.38.4",
   "description": "Манифест платформенных файлов FMT-exocortex-template. Используется update.sh для доставки обновлений.",
   "files": [
     {
@@ -249,7 +249,7 @@
     },
     {
       "path": ".claude/scripts/memory-drift-scan.py",
-      "sha256": "e1a484a888fc81be5ffa8acb3d2d375e8bec7794385982b11d4d71f24a0d69b8"
+      "sha256": "3a6b84fe9753a6c134afdf057dd005bfbcc6f6863e8d2022cc808b0fca82065c"
     },
     {
       "path": ".claude/scripts/settings-merge-apply.sh",
@@ -688,6 +688,10 @@
       "sha256": "5d4510a031d43cc85cd16735ec3a3a7490a8c14822622fb73902abd068b588cd"
     },
     {
+      "path": "docs/DATA-DOMAINS-REGISTRY.yaml",
+      "sha256": "45d88d5f96f662d4708c1db7dae448a1afdffe8340f926b7028d39b60ec245d2"
+    },
+    {
       "path": "docs/DATA-POLICY.md",
       "sha256": "9a6634619daff21faac14f466a66b57e057b305190b8d4e31003dfd8c581e57f"
     },
@@ -758,6 +762,10 @@
     {
       "path": "docs/adr/ADR-003-hosting-platform.md",
       "sha256": "641a2bc17471a86b1819a05177eaa5e8583ed44bd9ac8d08e879e7d60ec8006a"
+    },
+    {
+      "path": "docs/adr/ADR-004-data-domain-map.md",
+      "sha256": "5557957af5744ec4765e5a26a2c0e377613cc1aab480e9e1462199ef6a595deb"
     },
     {
       "path": "docs/agent-coordination-manifest.md",
@@ -2329,7 +2337,7 @@
     },
     {
       "path": "scripts/tests/test_issues_413_418.py",
-      "sha256": "23a1581ea39df97ebda73ae5faea1b24b1c331ee3cd0ff8daa16a46669a83b7e"
+      "sha256": "bec574712bb6c776c2c3b0f571b87b152c33745214fe9dd7788b2a2dbff6fedd"
     },
     {
       "path": "scripts/tests/test_session_guard_hypothesis_gate.sh",

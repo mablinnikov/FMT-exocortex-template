@@ -188,6 +188,50 @@ def test_memory_drift_scan_keeps_real_status_difference_visible(tmp_path: Path):
     assert len(module.scan(memory, governance)) == 1
 
 
+def test_memory_drift_scan_normalizes_russian_statuses(tmp_path: Path):
+    memory = tmp_path / "MEMORY.md"
+    governance = tmp_path / "DS-strategy"
+    card = governance / "inbox" / "WP-414" / "WP-414.md"
+    card.parent.mkdir(parents=True)
+    card.write_text("---\nstatus: blocked\n---\n", encoding="utf-8")
+    memory.write_text(
+        "| # | Работа | Статус |\n|---|---|---|\n| 414 | Проверка | ⏸ ЗАБЛОКИРОВАН — ждёт решения |\n",
+        encoding="utf-8",
+    )
+
+    module = load_memory_drift_scan()
+    assert module.scan(memory, governance) == []
+
+
+def test_memory_drift_scan_keeps_paused_distinct_from_blocked(tmp_path: Path):
+    memory = tmp_path / "MEMORY.md"
+    governance = tmp_path / "DS-strategy"
+    card = governance / "inbox" / "WP-414" / "WP-414.md"
+    card.parent.mkdir(parents=True)
+    card.write_text("---\nstatus: blocked\n---\n", encoding="utf-8")
+    memory.write_text(
+        "| # | Работа | Статус |\n|---|---|---|\n| 414 | Проверка | ⏸ — на паузе |\n",
+        encoding="utf-8",
+    )
+
+    module = load_memory_drift_scan()
+    drifts = module.scan(memory, governance)
+    assert len(drifts) == 1
+    assert "MEMORY.md=`paused` vs WP-context=`blocked`" in drifts[0]
+
+
+def test_memory_drift_scan_covers_platform_status_markers():
+    module = load_memory_drift_scan()
+
+    assert module.normalize_status("🧪") == "in_progress"
+    assert module.normalize_status("🚧") == "blocked"
+    assert module.normalize_status("📦") == "done"
+    assert module.normalize_status("↗️") == "done"
+    assert module.normalize_status("❌") == "cancelled"
+    assert module.normalize_status("выполнено") == "done"
+    assert module.normalize_status("отменён") == "cancelled"
+
+
 def test_close_wp_updates_canonical_folder_card(tmp_path: Path):
     governance = tmp_path / "DS-strategy"
     (governance / "docs").mkdir(parents=True)

@@ -130,7 +130,7 @@ load_env() {
 
 run_claude() {
     local command_file="$1"
-    local extra_args="$2"
+    local extra_args="${2:-}"
     local command_path="$PROMPTS_DIR/$command_file.md"
 
     if [ ! -f "$command_path" ]; then
@@ -268,19 +268,19 @@ case "$1" in
             exit 0
         fi
 
-        run_claude "inbox-check"
+        run_claude "inbox-check" ""
         notify_telegram "inbox-check"
         ;;
 
     "audit")
         log "Running knowledge audit"
-        run_claude "knowledge-audit"
+        run_claude "knowledge-audit" ""
         notify_telegram "audit"
         ;;
 
     "session-close")
         log "Running session-close extraction"
-        run_claude "session-close"
+        run_claude "session-close" ""
         ;;
 
     "session-close-feed")
@@ -289,7 +289,7 @@ case "$1" in
         # пишет ###-блоки в captures.md с маркером [feed:session-close YYYY-MM-DD].
         # Не создаёт extraction-report — это работа inbox-check потом.
         log "Running session-close FEED (non-interactive, writes to captures.md)"
-        run_claude "session-close-feed" "$2"
+        run_claude "session-close-feed" "${2:-}"
         notify_telegram "session-close-feed"
         ;;
 
@@ -305,7 +305,7 @@ case "$1" in
 
     "on-demand")
         log "Running on-demand extraction"
-        run_claude "on-demand"
+        run_claude "on-demand" ""
         ;;
 
     *)

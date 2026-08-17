@@ -60,17 +60,36 @@ _EMOJI_TO_STATUS = {
     "🔄": "in_progress",
     "⏳": "pending",
     "🏭": "in_progress",
+    "🧪": "in_progress",
+    "🚧": "blocked",
     "⚠️": "blocked",
+    "⏸": "paused",
     "✅": "done",
+    "📦": "done",
+    "↗": "done",
+    "❌": "cancelled",
 }
 
 
 _TEXT_STATUS_PATTERNS = (
     ("in_progress", re.compile(r"\bin[ _-]?progress\b", re.IGNORECASE)),
     ("in_progress", re.compile(r"\bactive\b", re.IGNORECASE)),
-    ("pending", re.compile(r"\bpending\b", re.IGNORECASE)),
+    ("in_progress", re.compile(r"\b(?:в[ _-]?работе|активен)\b", re.IGNORECASE)),
     ("blocked", re.compile(r"\bblocked\b", re.IGNORECASE)),
+    ("blocked", re.compile(r"\b(?:заблокирован|блокер)\b", re.IGNORECASE)),
+    ("paused", re.compile(r"\b(?:paused|приостановлен|на[ _-]?паузе)\b", re.IGNORECASE)),
     ("done", re.compile(r"\b(?:done|closed|complete(?:d)?)\b", re.IGNORECASE)),
+    ("done", re.compile(r"\b(?:готов|выполнено|заверш(?:ён|ен)|закрыт)\b", re.IGNORECASE)),
+    ("cancelled", re.compile(r"\b(?:cancelled|canceled|отменён|отменен)\b", re.IGNORECASE)),
+    ("pending", re.compile(r"\bpending\b", re.IGNORECASE)),
+    ("pending", re.compile(r"\b(?:ожидает|не[ _-]?начат)\b", re.IGNORECASE)),
+)
+
+# «ждёт» само по себе описывает и активную работу (🔄 ждёт ревью), и блокировку
+# (⏸ ждёт внешнего решения). Используем его только если явный статус и значок
+# отсутствуют; иначе он подменяет более точное свидетельство.
+_FALLBACK_TEXT_STATUS_PATTERNS = (
+    ("pending", re.compile(r"\bждёт\b", re.IGNORECASE)),
 )
 
 
@@ -82,10 +101,18 @@ def normalize_status(raw: str) -> str:
     create a false drift against the card's ``status: in_progress``.
     """
     cleaned = re.sub(r"[*~`_]", "", raw).strip()
+    # A status cell may contain a visual category and an explicit text state.
+    # Text wins: some existing MEMORY.md rows use ⏸ for a temporarily paused
+    # plan while explicitly saying "заблокирован" to match `status: blocked`.
+    # Treating the marker as authoritative would invent a drift where the
+    # sources agree. A bare ⏸ remains the distinct `paused` state below.
+    for status, pattern in _TEXT_STATUS_PATTERNS:
+        if pattern.search(cleaned):
+            return status
     for emoji, status in _EMOJI_TO_STATUS.items():
         if emoji in cleaned:
             return status
-    for status, pattern in _TEXT_STATUS_PATTERNS:
+    for status, pattern in _FALLBACK_TEXT_STATUS_PATTERNS:
         if pattern.search(cleaned):
             return status
     return cleaned

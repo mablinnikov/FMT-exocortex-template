@@ -27,6 +27,14 @@ if [ "${CODEX_SANDBOX:-}" = "seatbelt" ]; then
   exit 69
 fi
 
+# Codex's Linux sandbox disables network for non-escalated commands; the Claude
+# CLI then dies on the API call with a bare exit 1 (WP-524, verified live
+# 15.08 on codex-cli 0.147).  Fail fast with an actionable message instead.
+if [ "${CODEX_SANDBOX_NETWORK_DISABLED:-}" = "1" ]; then
+  echo "ERROR: network is disabled in this sandbox (CODEX_SANDBOX_NETWORK_DISABLED=1) — the Claude CLI cannot reach the API. Re-run through the approved escalated route." >&2
+  exit 69
+fi
+
 # CLAUDE_BIN auto-detect: env override → PATH → user-local fallbacks.
 # Системные пути (homebrew, /usr/local/bin) обычно в PATH и подхватываются через command -v.
 CLAUDE_BIN="${CLAUDE_BIN:-$(command -v claude 2>/dev/null || true)}"
@@ -240,6 +248,13 @@ fi
 if [ "$CLAUDE_EXIT" -ne 0 ]; then
   echo "ERROR: Claude peer call failed with exit code $CLAUDE_EXIT." >&2
   [ -s "$CLAUDE_STDERR" ] && tail -20 "$CLAUDE_STDERR" >&2
+  # Probe-on-failure only (peer-session 2026-08-15-05, Codex review): a CLI
+  # failure with no reachable API is an environment problem, not a Claude one —
+  # say so.  The healthy path pays no network-probe latency.
+  if command -v curl >/dev/null 2>&1 && \
+     ! curl -sI --max-time 3 https://api.anthropic.com >/dev/null 2>&1; then
+    echo "HINT: api.anthropic.com is unreachable from this environment — likely a sandboxed/offline context, not a Claude failure." >&2
+  fi
   adapter_diagnostic "$CLAUDE_EXIT"
   # Child exit codes are vendor-specific.  Never leak 2-7 here: callers may
   # otherwise mistake them for canonical adapter classifications.
