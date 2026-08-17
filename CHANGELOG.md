@@ -139,8 +139,14 @@ Refs: WP-NNN
 
 ## [Unreleased] — обновлено 2026-08-17
 
+### Added
+
+- [behavior] `setup/install-windows-tasks.ps1` — установка повторяющихся задач Стратега (morning, week-review) на Windows через Планировщик задач. Закрывает пробел `roles/strategist/install.sh`, который на Windows завершается без установки: launchd и systemd там отсутствуют.
+
 ### Fixed
 
+- [behavior] `strategist.sh` больше не теряет `day-rhythm-config.yaml` на workspace вне `$HOME`: путь резолвится через `$IWE_WORKSPACE`, macOS-форма project slug осталась запасным вариантом.
+- [behavior] Гейт `IWE_GOVERNANCE_REPO` читает `.iwe-paths` из workspace (установщик кладёт файл именно туда, не в `$HOME`), а его fallback снова работает — прежний `grep | sed || echo` не срабатывал, и гейт печатал `expected ` с пустым значением при каждом запуске.
 - [behavior] Формат номера РП теперь проверяется сквозным контрактом: колонка `#` принимает только чистое число, `check-wp-format.py` исправляет legacy-префиксы и паддинг, а `build-active-wp.py` не переносит их в производный список.
 
 ## [0.38.4] — 2026-08-16
