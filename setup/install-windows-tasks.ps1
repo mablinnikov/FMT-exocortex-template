@@ -97,19 +97,20 @@ if (-not (Test-Path -LiteralPath $BashPath)) {
     throw "Git Bash not found: $BashPath`nPass -BashPath with the correct location."
 }
 
-# The runner aborts with exit 127 unless it can resolve a CLI. `claude` is not on
-# PATH in a Codex-based install, so hand it the resolved binary explicitly rather
-# than letting the runner fall through to its bare-string "codex" fallback, which
-# fails its own `[ -x ]` check.
+# The runner aborts with exit 127 unless it can resolve a CLI, and Task Scheduler
+# does not run a login shell, so PATH cannot be relied on -- hand it the resolved
+# binary explicitly. claude comes first: strategist.sh drives the CLI with Claude
+# Code's own flags (--allowedTools, --model, -p), which codex rejects outright.
 if (-not $ClaudeCliPath) {
     $candidates = @(
-        (Join-Path $env:APPDATA "npm\codex"),
-        (Join-Path $env:APPDATA "npm\claude")
+        (Join-Path $env:APPDATA "npm\claude"),
+        (Join-Path $env:USERPROFILE ".local\bin\claude"),
+        (Join-Path $env:APPDATA "npm\codex")
     )
     $ClaudeCliPath = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 }
 if (-not $ClaudeCliPath) {
-    throw "No agent CLI found (looked for codex/claude in %APPDATA%\npm). Pass -ClaudeCliPath explicitly."
+    throw "No agent CLI found (looked for claude, then codex). Pass -ClaudeCliPath explicitly."
 }
 
 $wsMsys = ConvertTo-MsysPath $Workspace

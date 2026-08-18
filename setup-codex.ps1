@@ -30,6 +30,23 @@ function Resolve-GitHubUser {
     return "your-github-user"
 }
 
+function Resolve-AgentCli {
+    # strategist.sh drives the CLI with Claude Code's own flags (--allowedTools,
+    # --model, -p), which codex rejects with exit 2 -- so claude wins when both are
+    # installed. Returned as an msys path: the value lands in .exocortex.env, which
+    # Git Bash sources.
+    $candidates = @(
+        (Join-Path $env:APPDATA "npm\claude"),
+        (Join-Path $env:USERPROFILE ".local\bin\claude"),
+        (Join-Path $env:APPDATA "npm\codex")
+    )
+    $found = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $found) { return "claude" }
+    $full = [System.IO.Path]::GetFullPath($found)
+    $drive = $full.Substring(0, 1).ToLowerInvariant()
+    return "/$drive" + ($full.Substring(2) -replace '\\', '/')
+}
+
 function Expand-IwePlaceholders {
     param([string]$Text)
 
@@ -39,7 +56,7 @@ function Expand-IwePlaceholders {
         '{{GITHUB_USER}}'         = (Resolve-GitHubUser)
         '{{WORKSPACE_DIR}}'       = $Workspace
         '{{HOME_DIR}}'            = $homeDir
-        '{{CLAUDE_PATH}}'         = 'codex'
+        '{{CLAUDE_PATH}}'         = (Resolve-AgentCli)
         '{{CLAUDE_PROJECT_SLUG}}' = $slug
         '{{TIMEZONE_HOUR}}'       = '21'
         '{{TIMEZONE_DESC}}'       = '08:00 Asia/Sakhalin (UTC+11)'
