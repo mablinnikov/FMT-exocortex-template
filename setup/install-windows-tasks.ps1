@@ -142,7 +142,15 @@ foreach ($entry in $Tasks.GetEnumerator()) {
     # -l gives the login shell PATH (git, python); .iwe-paths supplies IWE_* which
     # strategist.sh needs to locate the workspace, and without which it would fall
     # back to $HOME/IWE and operate on a directory that does not exist here.
+    #
+    # The secrets file is sourced only if present, and the `|| true` keeps a missing
+    # or unreadable file from breaking the && chain -- the run should reach the CLI
+    # and fail there with a legible auth error, not die silently in the wrapper.
+    # It carries ANTHROPIC_API_KEY: claude.ai returns 403 from this egress, so the
+    # OAuth login flow is unavailable and key auth against api.anthropic.com (which
+    # answers 401, i.e. reachable, not country-blocked) is the way in.
     $inner = "source '$wsMsys/.iwe-paths' && " +
+             "{ [ -f '$wsMsys/.secrets/anthropic_key.env' ] && set -a && . '$wsMsys/.secrets/anthropic_key.env' && set +a || true; } && " +
              "export CLAUDE_CLI_PATH='$cliMsys' && " +
              "exec `"`$IWE_RUNTIME/roles/strategist/scripts/strategist.sh`" $scenario"
     $argument = '-l -c "' + $inner.Replace('"', '\"') + '"'
