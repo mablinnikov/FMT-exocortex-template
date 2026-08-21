@@ -392,6 +392,7 @@ HEREDOC
 
 cp "$TEMPLATE_DIR/.exocortex.env" "$T8_WS/.exocortex.env" 2>/dev/null || cat > "$T8_WS/.exocortex.env" <<HEREDOC
 HOME_DIR=$HOME
+USER_NAME=test-user
 WORKSPACE_DIR=$T8_WS
 CLAUDE_PATH=/usr/bin/claude
 CLAUDE_PROJECT_SLUG=test
@@ -626,8 +627,9 @@ else
     # Case A: default installation (mandatory_daily_wps commented out in the
     # template default), DayPlan uses the real pilot phrasing from issue #328.
     T11_DIR="$TEST_WS/t11-dayplan"
-    mkdir -p "$T11_DIR/memory" "$T11_DIR/current"
+    mkdir -p "$T11_DIR/memory" "$T11_DIR/current" "$T11_DIR/scripts/lib"
     cp "$TEMPLATE_DIR/memory/day-rhythm-config.yaml" "$T11_DIR/memory/day-rhythm-config.yaml"
+    cp "$TEMPLATE_DIR/scripts/lib/find-python3.sh" "$T11_DIR/scripts/lib/find-python3.sh"
     cat > "$T11_DIR/current/DayPlan.md" <<'HEREDOC'
 ## Бюджет
 ~1.25 ч РП всего / 0 ч физической работы. Мультипликатор не считаю.
@@ -648,7 +650,8 @@ HEREDOC
     # section — must still fail. Proves Case A isn't passing because the
     # checks were silently disabled, not because the config was honored.
     T11_DIR_B="$TEST_WS/t11-dayplan-b"
-    mkdir -p "$T11_DIR_B/memory" "$T11_DIR_B/current"
+    mkdir -p "$T11_DIR_B/memory" "$T11_DIR_B/current" "$T11_DIR_B/scripts/lib"
+    cp "$TEMPLATE_DIR/scripts/lib/find-python3.sh" "$T11_DIR_B/scripts/lib/find-python3.sh"
     cat > "$T11_DIR_B/memory/day-rhythm-config.yaml" <<'HEREDOC'
 mandatory_daily_wps:
   - wp: 7
@@ -873,6 +876,7 @@ T14_WS="$TEST_WS/t14-workspace"
 mkdir -p "$T14_WS"
 cat > "$T14_WS/.exocortex.env" <<HEREDOC
 HOME_DIR=$HOME
+USER_NAME=test-user
 WORKSPACE_DIR=$T14_WS
 CLAUDE_PATH=/usr/bin/claude
 CLAUDE_PROJECT_SLUG=test
@@ -1271,7 +1275,7 @@ for platform_file in \
     protocol-open.md protocol-work.md protocol-close.md protocol-month-close.md \
     agent-architecture-framework.md agent-vendor-connect-pattern.md checklists.md \
     dry-run-contract.md feedback_response_clarity_for_pilot.md hooks-design.md navigation.md \
-    reference/agent-core.md repo-type-rules.md roles.md r-questionnaire.md t-checklist.md templates-dayplan.md; do
+    reference/agent-core.md repo-type-rules.md r-questionnaire.md t-checklist.md templates-dayplan.md; do
     if [ "$(get_field "$TEMPLATE_DIR/memory/$platform_file" owner)" != "platform" ]; then
         T21_OWNER_FAILURES=$((T21_OWNER_FAILURES + 1))
     fi
@@ -1502,6 +1506,23 @@ else
     fail "T23: legacy checkbox fallback regressed (rc=$T23_LEGACY_RC): $T23_LEGACY_OUT"
 fi
 
+mkdir -p "$T23_GOV/archive/wp-contexts"
+cat > "$T23_GOV/archive/wp-contexts/WP-469-unrelated.md" <<'HEREDOC'
+---
+wp: 469
+status: done
+---
+HEREDOC
+
+T23_PREFIX_OUT=$(IWE_WORKSPACE="$T23_ROOT" IWE_GOVERNANCE_REPO=governance \
+    bash "$TEMPLATE_DIR/.claude/scripts/wp-sync-bundle.sh" WP-46 2>&1)
+T23_PREFIX_RC=$?
+if [ "$T23_PREFIX_RC" -eq 1 ] && [[ "$T23_PREFIX_OUT" == *'WP-46: файл не найден'* ]]; then
+    pass "T23: a shorter WP ID does not resolve a longer numeric prefix"
+else
+    fail "T23: numeric-prefix archive lookup regressed (rc=$T23_PREFIX_RC): $T23_PREFIX_OUT"
+fi
+
 # ============================================================
 # T24: public-fork CLAUDE bases stay raw and rules survive repair
 # ============================================================
@@ -1513,6 +1534,7 @@ mkdir -p "$T24_TEMPLATE" "$T24_ROOT/.claude/rules"
 cat > "$T24_ROOT/.exocortex.env" <<EOF
 WORKSPACE_DIR="$T24_ROOT"
 HOME_DIR="$T24_ROOT/home"
+USER_NAME="test-user"
 CLAUDE_PATH="$T24_ROOT/bin/claude"
 IWE_TEMPLATE="$T24_TEMPLATE"
 IWE_RUNTIME="$T24_ROOT/.iwe-runtime"

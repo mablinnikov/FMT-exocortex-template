@@ -38,7 +38,7 @@ check "usage error: несуществующий файл" "/tmp/validate-event-
 VALID_FIXTURE=$(mktemp)
 cat > "$VALID_FIXTURE" << 'EOF'
 event_type: hypothesis_verdict
-source: DS-my-strategy/current/hypotheses-log.md
+source: strategy/current/hypotheses-log.md
 period: 2026-08-16
 summary: "H-270: вердикт «неприменимо»"
 requires_pilot_decision: true
@@ -48,7 +48,7 @@ check "валидное событие (реальный H-270)" "$VALID_FIXTURE
 MISSING_FIELD_FIXTURE=$(mktemp)
 cat > "$MISSING_FIELD_FIXTURE" << 'EOF'
 event_type: hypothesis_verdict
-source: DS-my-strategy/current/hypotheses-log.md
+source: strategy/current/hypotheses-log.md
 summary: "нет поля period"
 requires_pilot_decision: true
 EOF
@@ -57,7 +57,7 @@ check "отсутствует поле period" "$MISSING_FIELD_FIXTURE" 1
 BAD_BOOL_FIXTURE=$(mktemp)
 cat > "$BAD_BOOL_FIXTURE" << 'EOF'
 event_type: hypothesis_verdict
-source: DS-my-strategy/current/hypotheses-log.md
+source: strategy/current/hypotheses-log.md
 period: 2026-08-16
 summary: "requires_pilot_decision не булево"
 requires_pilot_decision: да
@@ -67,7 +67,7 @@ check "requires_pilot_decision = 'да' вместо true/false" "$BAD_BOOL_FIXT
 BAD_DATE_FIXTURE=$(mktemp)
 cat > "$BAD_DATE_FIXTURE" << 'EOF'
 event_type: hypothesis_verdict
-source: DS-my-strategy/current/hypotheses-log.md
+source: strategy/current/hypotheses-log.md
 period: 16.08.2026
 summary: "period в неверном формате"
 requires_pilot_decision: false
@@ -77,7 +77,7 @@ check "period в формате ДД.ММ.ГГГГ вместо ISO" "$BAD_DATE_
 RANGE_FIXTURE=$(mktemp)
 cat > "$RANGE_FIXTURE" << 'EOF'
 event_type: session_closed
-source: DS-my-strategy
+source: strategy
 period: 2026-08-10..2026-08-16
 summary: "закрытие недели"
 requires_pilot_decision: false
@@ -86,7 +86,7 @@ check "period как диапазон дат" "$RANGE_FIXTURE" 0
 
 NO_EVENT_TYPE_FIXTURE=$(mktemp)
 cat > "$NO_EVENT_TYPE_FIXTURE" << 'EOF'
-source: DS-my-strategy
+source: strategy
 period: 2026-08-16
 summary: "нет поля event_type"
 requires_pilot_decision: false
@@ -105,7 +105,7 @@ check "отсутствует поле source" "$NO_SOURCE_FIXTURE" 1
 NO_SUMMARY_FIXTURE=$(mktemp)
 cat > "$NO_SUMMARY_FIXTURE" << 'EOF'
 event_type: dissatisfaction_stale
-source: DS-my-strategy
+source: strategy
 period: 2026-08-16
 requires_pilot_decision: true
 EOF

@@ -655,11 +655,26 @@ else
   echo "   ⚠️  scripts/build-active-wp.py не найден (искали в \`$STRATEGY/scripts/\` и \`$IWE/FMT-exocortex-template/scripts/\`) — пересобрать вручную" >&2
 fi
 
-# --- Внешний трекер (условный пост-шаг, issue #321) ---
+# --- Внешний трекер (условный пост-шаг, #432) ---
+# The local transaction above is already complete.  The adapter is deliberately
+# best-effort: its UNAVAILABLE/INVALID_CONFIG result is visible but never rolls
+# back a valid local WP.
 echo ""
-echo "ℹ️  Внешний трекер (если подключён): создать issue вручную или через MCP"
-echo "   Linear MCP → create_issue title='WP-${WP_ID} ${TITLE}' teamId=TSR"
-echo "   MCP не подключён → штатно: отметить «внешний трекер: не подключён», локальная запись полна"
+TRACKER_ADAPTER=""
+if [[ -x "$IWE/scripts/external-tracker.py" ]]; then
+  TRACKER_ADAPTER="$IWE/scripts/external-tracker.py"
+elif [[ -x "$IWE/FMT-exocortex-template/scripts/external-tracker.py" ]]; then
+  TRACKER_ADAPTER="$IWE/FMT-exocortex-template/scripts/external-tracker.py"
+fi
+
+if [[ -n "$TRACKER_ADAPTER" && "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+  TRACKER_OUTPUT=$(python3 "$TRACKER_ADAPTER" create --context "$WP_FILE" --repository "$REPO" 2>&1 || true)
+  echo "ℹ️  Внешний трекер: $TRACKER_OUTPUT"
+elif [[ -n "$TRACKER_ADAPTER" ]]; then
+  echo "ℹ️  Внешний трекер не вызывался: --repo должен иметь формат owner/repository"
+else
+  echo "ℹ️  Внешний трекер не установлен; локальная регистрация РП завершена"
+fi
 
 # --- Consent file остаётся в папке WP для аудит-следа ---
 # Ранее consent file удалялся здесь; это ломало последующие wp-gate-check

@@ -129,24 +129,77 @@ SHIM_DIR="$TEST_ROOT/shim"
 mkdir -p "$SHIM_DIR"
 cat > "$SHIM_DIR/curl" <<SHIMEOF
 #!/bin/bash
-url="" out=""
+# WP-546 Ф2 (main 8112b1a) switched update.sh's batch download from one
+# "curl -o dest url" per file to a single "curl --parallel -K configfile"
+# call (url/output pairs live inside the config file, not argv) — this shim
+# originally only understood the single-file shape, so every batch call
+# fell through with url="" out="", hit the else branch below and exited 22
+# for the WHOLE batch. Found live: 9/19 scenarios in this file failing on
+# real CI after that merge (Scenario A/C/E), traced to exactly this gap.
+simulate_one_transfer() {
+    local u="\$1" o="\$2"
+    local rel="\${u#*/main/}"
+    if [ "\$rel" = "update.sh" ]; then
+        cp "$SCRIPT_DIR/update.sh" "\$o"
+    elif [ "\$rel" = "update-manifest.json" ]; then
+        cp "$UPSTREAM/update-manifest.json" "\$o"
+    else
+        local src="$UPSTREAM/\$rel"
+        [ -f "\$src" ] && cp "\$src" "\$o" || return 22
+    fi
+}
+
+url="" out="" cfgfile=""
 args=("\$@")
 for ((i=0; i<\${#args[@]}; i++)); do
     case "\${args[i]}" in
         http*) url="\${args[i]}" ;;
         -o) out="\${args[i+1]}" ;;
+        -K) cfgfile="\${args[i+1]}" ;;
     esac
 done
-rel="\${url#*/main/}"
-if [ "\$rel" = "update.sh" ]; then
-    cp "$SCRIPT_DIR/update.sh" "\$out"
-elif [ "\$rel" = "update-manifest.json" ]; then
-    cp "$UPSTREAM/update-manifest.json" "\$out"
-else
-    src="$UPSTREAM/\$rel"
-    [ -f "\$src" ] && cp "\$src" "\$out" || exit 22
+
+if [ -n "\$cfgfile" ]; then
+    # -K batch mode (download_batch()): url/output come in pairs, one per
+    # line, no shell metacharacters expected — parsed as plain text, never
+    # eval'd. Real curl --parallel --remove-on-error keeps going after one
+    # transfer fails and lets the others still land, so a missing upstream
+    # file here skips just that pair, not the whole batch (matches
+    # simulate_one_transfer's per-file "no source -> no output" contract) —
+    # but the shim still reports the batch as failed overall (had_error) if
+    # anything in it didn't make it, same as real curl's own exit code.
+    had_error=0
+    pending_url=""
+    # The '|| [ -n LINE ]' guard below: read returns non-zero on the
+    # final line of a file with no trailing newline, which would otherwise
+    # skip that line's pair entirely and silently under-report a failure —
+    # today's config always ends in \n (download_batch's own printf appends
+    # it, update.sh) so this doesn't currently fire, but the loop shouldn't
+    # quietly depend on that (cold-context review).
+    while IFS= read -r line || [ -n "\$line" ]; do
+        case "\$line" in
+            'url = '*)
+                [ -n "\$pending_url" ] && had_error=1  # unpaired url before this one
+                pending_url=\$(printf '%s' "\$line" | sed -e 's/^url = "//' -e 's/"\$//')
+                ;;
+            'output = '*)
+                if [ -z "\$pending_url" ]; then
+                    had_error=1  # output with no preceding url — malformed pair
+                else
+                    pending_out=\$(printf '%s' "\$line" | sed -e 's/^output = "//' -e 's/"\$//')
+                    simulate_one_transfer "\$pending_url" "\$pending_out" || had_error=1
+                    pending_url=""
+                fi
+                ;;
+        esac
+    done < "\$cfgfile"
+    [ -n "\$pending_url" ] && had_error=1  # trailing url with no output line
+    exit "\$had_error"
 fi
-exit 0
+
+# Single-file mode (Step 0 self-update, manifest fetch — unchanged).
+simulate_one_transfer "\$url" "\$out"
+exit \$?
 SHIMEOF
 chmod +x "$SHIM_DIR/curl"
 
@@ -344,6 +397,65 @@ if grep -q "owner: user, НЕ обновлён, но шаблонная верс
     pass "D: owner:user drift is visible with a comparison command on an unchanged run"
 else
     fail "D: owner:user drift remained silent outside the changed-files list"
+fi
+
+# ------------------------------------------------------------------
+# Scenario E: a genuine change (memo v2 → v3) lands alongside a manifest
+# entry whose fetch fails (WP-529 Ф2). Before this fix, TOTAL_CHANGES>0
+# meant the run applied the fetched files and stamped the local manifest as
+# fully updated, leaving the failed file silently on the old version.
+# ------------------------------------------------------------------
+echo "--- Scenario E: partial fetch failure must abort, not partially apply (WP-529) ---"
+printf '# Dummy memo v3\n' > "$UPSTREAM/memory/dummy-memo.md"
+python3 - "$UPSTREAM/update-manifest.json" "$UPSTREAM" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+manifest_path, root = sys.argv[1:]
+with open(manifest_path, encoding="utf-8") as handle:
+    manifest = json.load(handle)
+for entry in manifest["files"]:
+    if entry["path"] == "memory/dummy-memo.md":
+        entry["sha256"] = hashlib.sha256(
+            (pathlib.Path(root) / entry["path"]).read_bytes()
+        ).hexdigest()
+# A manifest entry with no matching file under $UPSTREAM — the curl shim
+# exits 22 for it, landing it in SKIPPED_DOWNLOAD.
+manifest["files"].append({"path": "memory/never-fetched.md", "sha256": "0" * 64})
+with open(manifest_path, "w", encoding="utf-8") as handle:
+    json.dump(manifest, handle)
+PY
+MEMO_BEFORE=$(cat "$SCRIPT_DIR/memory/dummy-memo.md")
+MANIFEST_HASH_BEFORE=$(sha256sum "$SCRIPT_DIR/update-manifest.json" | cut -d' ' -f1)
+
+set +e
+PATH="$SHIM_DIR:$PATH" HOME="$FAKE_HOME" bash "$SCRIPT_DIR/update.sh" --yes > "$TEST_ROOT/out-e.log" 2>&1
+RC_E=$?
+set -e
+
+if [ "$RC_E" -eq 2 ]; then
+    pass "E: update.sh exits with EXIT_NETWORK(2) on a partial fetch failure"
+else
+    fail "E: expected exit 2, got $RC_E"
+fi
+
+if grep -q "Обновление остановлено" "$TEST_ROOT/out-e.log"; then
+    pass "E: abort is reported to the user with a clear reason"
+else
+    fail "E: no abort message found in output"
+fi
+
+if [ "$(cat "$SCRIPT_DIR/memory/dummy-memo.md")" = "$MEMO_BEFORE" ]; then
+    pass "E: the file that WOULD have changed was left untouched (no partial apply)"
+else
+    fail "E: dummy-memo.md was updated despite the aborted run — partial apply regression"
+fi
+
+if [ "$(sha256sum "$SCRIPT_DIR/update-manifest.json" | cut -d' ' -f1)" = "$MANIFEST_HASH_BEFORE" ]; then
+    pass "E: local update-manifest.json was not stamped as updated"
+else
+    fail "E: local manifest changed despite the aborted run"
 fi
 
 echo ""

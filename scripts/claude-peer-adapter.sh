@@ -17,6 +17,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/peer-adapter-common.sh
+source "$SCRIPT_DIR/lib/peer-adapter-common.sh"
+
 # Claude Code can access its macOS Keychain credentials only outside Codex's
 # seatbelt. Running the adapter inside that sandbox produced intermittent blank
 # output that looked like success. A caller must use the approved external
@@ -27,13 +31,7 @@ if [ "${CODEX_SANDBOX:-}" = "seatbelt" ]; then
   exit 69
 fi
 
-# Codex's Linux sandbox disables network for non-escalated commands; the Claude
-# CLI then dies on the API call with a bare exit 1 (WP-524, verified live
-# 15.08 on codex-cli 0.147).  Fail fast with an actionable message instead.
-if [ "${CODEX_SANDBOX_NETWORK_DISABLED:-}" = "1" ]; then
-  echo "ERROR: network is disabled in this sandbox (CODEX_SANDBOX_NETWORK_DISABLED=1) — the Claude CLI cannot reach the API. Re-run through the approved escalated route." >&2
-  exit 69
-fi
+peer_adapter_check_sandbox_network "Claude CLI" 69
 
 # CLAUDE_BIN auto-detect: env override → PATH → user-local fallbacks.
 # Системные пути (homebrew, /usr/local/bin) обычно в PATH и подхватываются через command -v.
@@ -127,37 +125,7 @@ case "$IWE_PEER_TIMEOUT_SECONDS" in
     ;;
 esac
 
-run_with_deadline() {
-  local deadline_seconds="$1"
-  shift
-  perl -MPOSIX=setsid -e '
-    use strict;
-    use warnings;
-
-    my $seconds = shift @ARGV;
-    my $child = fork();
-    die "ERROR: cannot fork peer CLI supervisor: $!\n" unless defined $child;
-    if ($child == 0) {
-      setsid() or die "ERROR: cannot isolate peer CLI process group: $!\n";
-      exec @ARGV or die "ERROR: cannot exec peer CLI: $!\n";
-    }
-
-    my $timed_out = 0;
-    local $SIG{ALRM} = sub {
-      $timed_out = 1;
-      kill "TERM", -$child;
-      select undef, undef, undef, 2;
-      kill "KILL", -$child;
-    };
-    alarm $seconds;
-    waitpid($child, 0);
-    my $status = $?;
-    alarm 0;
-    exit 142 if $timed_out;
-    exit 128 + ($status & 127) if $status & 127;
-    exit $status >> 8;
-  ' "$deadline_seconds" "$@"
-}
+# run_with_deadline() — see scripts/lib/peer-adapter-common.sh (sourced above).
 #
 # WP-7 Ф64 (12.08, six independent reproductions across sessions, root-caused
 # live in WP-524 Ф3): the old default of 2 assumed one turn for internal
@@ -276,14 +244,7 @@ fi
 # (review/verify/synth), чей вывод — НЕ peer-реплика, отключают её
 # через IWE_PEER_PLAIN=1 (слой IWE-интеграции, §0в.1).
 if [ "${IWE_PEER_PLAIN:-0}" != "1" ]; then
-  # awk одним процессом: 'sed | head' под pipefail ловит SIGPIPE на длинной
-  # валидной реплике и роняет адаптер без диагностики (review-02, WP-516 Ф5).
-  _FIRST_LINE=$(printf '%s\n' "$CLAUDE_OUTPUT" | awk 'length { print; exit }')
-  _FM_FENCES=$(printf '%s\n' "$CLAUDE_OUTPUT" | grep -c '^---$' || true)
-  if [ "$_FIRST_LINE" != "---" ] || [ "${_FM_FENCES:-0}" -lt 2 ]; then
-    echo "ERROR: peer response missing frontmatter (first non-empty line must be '---' with a closing '---')." >&2
-    exit 1
-  fi
+  peer_adapter_check_frontmatter "$CLAUDE_OUTPUT"
 fi
 
 printf '%s\n' "$CLAUDE_OUTPUT"
