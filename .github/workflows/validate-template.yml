@@ -579,6 +579,21 @@ jobs:
       - name: Run delivery-route-label acceptance test
         run: bash setup/test-delivery-route-label.sh
 
+      # WP-529 F7 acceptance: every runtime dependency of the Day Open pipeline
+      # must resolve inside the delivery root (scripts/ + seed mirror), with
+      # transitive closure over imports/sources — dynamic extraction from the
+      # pipeline itself, no hand-kept list. Extension-graph dispatch is a strict
+      # xfail until ArchGate Q1; an XPASS fails the run on purpose.
+      - name: Run Day Open delivery-closure acceptance test
+        run: bash setup/test-day-open-delivery-closure.sh
+
+      # WP-529 F7 follow-up (pilot decision 2026-08-21): update.sh delivers the
+      # last published release by default, moving main only via explicit
+      # IWE_UPDATE_CHANNEL=main or as an announced fallback when no release
+      # exists. Stubbed-curl cases over the real resolve_delivery_ref().
+      - name: Run update.sh release-channel test
+        run: bash setup/test-update-release-channel.sh
+
       # PR #385: cloud install paths may occur legitimately in old tracked text;
       # only additions made by the current updater run are publication blockers.
       - name: Test staged install-path guard

@@ -17,6 +17,11 @@ EXIT_OK=0
 EXIT_USAGE=1
 EXIT_NETWORK=2
 EXIT_RUNTIME=3   # build-runtime.sh failed — transaction left open (WP-529 F6)
+EXIT_TAINTED=4   # peer-session 2026-08-21-09: grep-fallback manifest parsing ran
+                 # (no Python), so file integrity was never verified by sha256 —
+                 # only file names were compared. Overrides EXIT_OK specifically;
+                 # a real operational error (network/conflict/runtime) still
+                 # takes priority over this code, it never masks one.
 EXIT_CONFLICT=49
 EXIT_GENERAL=1
 
@@ -25,6 +30,12 @@ trap 'echo "ОШИБКА: update.sh прервался на строке ${LINEN
 VERSION="2.4.1"  # fix (WP-401): deprecated-file removal now checks is_protected_user_file() — a protected file (e.g. sessions/00-index.md) listed in deprecated_files by mistake could previously be deleted despite the "Не затрагиваются" report claiming otherwise; fix #229: repair-pass no longer stale-repairs memory files with owner: user in frontmatter; fix #228: hot-budget validator warns when memory/*.md horizon:hot lines exceed threshold
 REPO="TserenTserenov/FMT-exocortex-template" # UPSTREAM-CONST: do not substitute
 BRANCH="main"
+# Delivery channel (WP-529 F7, pilot decision 2026-08-21, prompted by an
+# external user's report): "release" (default) pins the delivery to the last
+# published release tag — users must not receive unreleased, possibly red,
+# main. IWE_UPDATE_CHANNEL=main opts back into the moving branch (author/dev
+# workflow, and the automatic fallback when no release exists yet).
+UPDATE_CHANNEL="${IWE_UPDATE_CHANNEL:-release}"
 RAW_BASE="https://raw.githubusercontent.com/$REPO/$BRANCH"
 API_BASE="https://api.github.com/repos/$REPO"
 
@@ -678,11 +689,52 @@ assert_self_unmutated() {
     fi
 }
 
+# exit_clean — the shared exit for every "this run completed with no
+# operational error" path (peer-session 2026-08-21-09, Codex review
+# consensus). Overrides EXIT_OK with EXIT_TAINTED when INTEGRITY_TAINTED is
+# set — i.e. the grep-fallback ran (no Python), so file content was never
+# verified by sha256, only file names were compared. It does not intercept
+# any operational-error exit (EXIT_NETWORK/EXIT_RUNTIME/EXIT_CONFLICT) —
+# those return directly and never reach this function, so a real failure
+# is never masked by a tainted-but-otherwise-clean verdict.
+exit_clean() {
+    if $INTEGRITY_TAINTED; then
+        echo "⚠ Завершено с непроверенной целостностью: Python недоступен, содержимое файлов не сверялось по контрольной сумме." >&2
+        exit "$EXIT_TAINTED"
+    fi
+    exit "$EXIT_OK"
+}
+
 # Resolve main once before fetching the manifest.  Every subsequent download uses
 # that immutable commit, so a push between manifest and file requests cannot mix
 # hashes from one revision with content from another (issue #398).
 resolve_delivery_ref() {
-    local resolved_ref
+    local resolved_ref release_tag
+    if [ "$UPDATE_CHANNEL" = "release" ]; then
+        # sed, not python: the tag must be resolvable even on installs where
+        # py_available fails — a release tag is already an immutable-enough
+        # pin, unlike the moving branch the no-python path degrades to below.
+        # shellcheck disable=SC2086
+        release_tag=$(curl $CURL_BASE_OPTS $_CURL_SSL_OPT -sSfL "$API_BASE/releases/latest" 2>/dev/null | \
+            sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+        if [ -n "$release_tag" ]; then
+            if py_available && resolved_ref=$(curl $CURL_BASE_OPTS $_CURL_SSL_OPT -sSfL "$API_BASE/commits/$release_tag" 2>/dev/null | \
+                "$PY_BIN" -c '
+import json, re, sys
+sha = json.load(sys.stdin).get("sha", "")
+if not re.fullmatch(r"[0-9a-f]{40}", sha):
+    raise SystemExit(1)
+print(sha)'); then
+                RAW_BASE="https://raw.githubusercontent.com/$REPO/$resolved_ref"
+                echo "  Канал поставки: релиз $release_tag (снимок ${resolved_ref:0:12})"
+            else
+                RAW_BASE="https://raw.githubusercontent.com/$REPO/$release_tag"
+                echo "  Канал поставки: релиз $release_tag (закреплён по тегу)"
+            fi
+            return 0
+        fi
+        echo "  ⚠ Не удалось определить последний релиз (нет релизов или API недоступен) — откат на ветку $BRANCH."
+    fi
     if ! py_available; then
         echo "  ⚠ Нет python3: поставка проверяется по подвижной ветке $BRANCH."
         return 0
@@ -1033,6 +1085,190 @@ CLAUDE_BASE_MISSING_FILES=()
 DOWNLOAD_QUEUE=()
 DOWNLOAD_DESCS=()
 DOWNLOAD_HASHES=()
+# INTEGRITY_TAINTED (peer-session 2026-08-21-09, WP-546 review follow-up,
+# consensus with Codex): true when the fallback path (grep, no sha256 in
+# the manifest lines it emits) is in use — a real parser failure below
+# aborts the script outright instead (cold-context review, same
+# peer-session: an earlier version of this comment claimed the flag also
+# covered that case, which was never reachable — exit happens before this
+# flag would be set). The old fallback comment claimed integrity was
+# "already documented via SKIPPED_DOWNLOAD, not silently trusted" — false:
+# an empty expected_hash makes verify_batch_integrity() skip the file
+# (`[ -n "$expected_hash" ] || continue`), so a corrupted or substituted
+# download was silently accepted as good. This flag makes that condition
+# visible in the final verdict instead of printing an ordinary success.
+INTEGRITY_TAINTED=false
+
+# Parse the manifest into a plain temp file first, not directly via process
+# substitution into the while-loop below (peer-session 2026-08-21-09: the
+# original code piped the parser straight into `while read`, so a Python
+# crash mid-parse — bad JSON, missing field, encoding error — just produced
+# a short or empty stream that `while read` silently accepted as "few/no
+# files to update," indistinguishable from a real empty manifest). Written
+# under $TMPDIR_UPDATE, which cleanup_update()'s EXIT trap already removes.
+MANIFEST_PARSED="$TMPDIR_UPDATE/manifest-parsed.txt"
+if py_available; then
+    # Path via argv (issue #402, defect 2), not interpolated into the -c
+    # string — see FILES_MATCH above. stderr is NOT redirected here (was
+    # `2>/dev/null`): a parse failure on our own manifest should be rare, and
+    # silencing it left nothing to diagnose why the run below fell back to
+    # "no changes."
+    if ! $PY_BIN -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+for entry in data.get('files', []):
+    print(entry['path'] + '|' + entry.get('desc', '') + '|' + entry.get('sha256', ''))
+" "$MANIFEST" > "$MANIFEST_PARSED"; then
+        echo "✗ Не удалось разобрать манифест обновлений ($MANIFEST) — Python вернул ошибку (см. вывод выше)." >&2
+        echo "  Обновление остановлено: продолжать со сбойным разбором значило бы рискнуть тихо решить, что обновлять нечего." >&2
+        exit "$EXIT_RUNTIME"
+    fi
+else
+    # Fallback: basic grep parsing if no working python interpreter. No
+    # sha256 in this path — integrity verification is skipped entirely, so
+    # every file below counts as unverified (INTEGRITY_TAINTED, not merely
+    # "checked composition only" as the old comment claimed).
+    INTEGRITY_TAINTED=true
+    echo "⚠ Python недоступен — только состав файлов сверяется, содержимое НЕ проверяется по контрольной сумме." >&2
+
+    # High 2 fail-closed guard (peer-session 2026-08-21-12, Codex, revised
+    # after cold-context review found the first version tautological — the
+    # extracted-count and found-count were both built from the same grep, so
+    # they were always equal even when sed extracted garbage). The fallback
+    # assumes one "path" key per line — a compact/minified manifest (several
+    # entries on one line) silently breaks that assumption, and the old code
+    # just extracted the FIRST match per line instead of failing, losing
+    # every other entry with no signal. A line-count heuristic
+    # (`wc -l == 1`) was considered and rejected: a trailing-newline-less
+    # minified file gives 0, and a compact multi-line manifest can still
+    # pack several "path" keys onto one physical line. Check the actual
+    # assumption — how many "path" occurrences share a line — not a proxy
+    # for it.
+    #
+    # Scope decision (same peer-session, second round): this fallback
+    # supports ONLY the line-per-field layout this repo's own manifest
+    # generator produces — "path" preceded solely by whitespace on its
+    # line, per PATH_LINE_RE below. A compact single-file manifest like
+    # {"files":[{"path":"x.md"}]} is valid JSON but NOT supported here and
+    # correctly hits EXIT_RUNTIME (test-update-issue-226.sh Scenario H) —
+    # a looser prefix (^.*"path") was considered and rejected: it would
+    # let arbitrary text ahead of the real key mask corruption or a "path"
+    # match inside an unrelated string value, undermining the whole-line
+    # grammar match's actual guarantee.
+    #
+    # Every grep below has an explicit 0/1/>1 status check (peer-session
+    # 2026-08-21-12, High 2): this script has `set -e` but not `pipefail`,
+    # so a grep failing inside a pipe or process substitution would
+    # otherwise be silently absorbed by the next command in the chain —
+    # exactly the "fail-open under error" this guard exists to prevent.
+    # grep_or_die PATTERN FILE DEST-VAR — runs "grep -c PATTERN FILE",
+    # writes stdout to DEST-VAR (a file path), returns 0. Aborts the script
+    # on any grep exit status other than 0 (matches found) or 1 (no
+    # matches) — status >1 means grep itself failed to read/execute.
+    grep_or_die() {
+        local pattern="$1" file="$2" dest="$3" rc=0
+        grep -c -- "$pattern" "$file" > "$dest" 2>/dev/null || rc=$?
+        if [ "$rc" -gt 1 ]; then
+            echo "✗ Не удалось прочитать манифест обновлений для резервного разбора (grep вернул код ${rc})." >&2
+            exit "$EXIT_RUNTIME"
+        fi
+        return 0
+    }
+
+    # -c counts MATCHING LINES; that's exactly what both guards need — the
+    # multi-path check cares whether ANY line has 2+ occurrences (a line
+    # either qualifies as a violation or doesn't), and once that guard has
+    # passed, "at most one path per line" makes line-count and
+    # occurrence-count the same number for the total.
+    MULTI_PATH_COUNT_FILE=$(mktemp)
+    grep_or_die '"path".*"path"' "$MANIFEST" "$MULTI_PATH_COUNT_FILE"
+    MULTI_PATH_LINES=$(cat "$MULTI_PATH_COUNT_FILE")
+    rm -f "$MULTI_PATH_COUNT_FILE"
+    if [ "$MULTI_PATH_LINES" -gt 0 ]; then
+        echo "✗ Манифест обновлений в компактном/минифицированном формате (несколько записей на одной строке) — резервный разбор без Python это не поддерживает." >&2
+        echo "  Обновление остановлено: обычная извлечённая запись отбросила бы соседние записи на той же строке без предупреждения." >&2
+        exit "$EXIT_RUNTIME"
+    fi
+
+    PATH_KEY_COUNT_FILE=$(mktemp)
+    grep_or_die '"path"' "$MANIFEST" "$PATH_KEY_COUNT_FILE"
+    PATH_KEY_TOTAL=$(cat "$PATH_KEY_COUNT_FILE")
+    rm -f "$PATH_KEY_COUNT_FILE"
+
+    # grep_or_die's -c count above already confirms whether "path" occurs;
+    # the actual matching lines still need a second, non-counting pass
+    # (grep without -c) to feed the per-line grammar check below. Same
+    # explicit-status contract as grep_or_die: status 1 (no matches) can't
+    # happen here (PATH_KEY_TOTAL already proved matches exist above), so
+    # >0 is unconditionally a read error, not "no matches." The `|| grep_rc=$?`
+    # form (not a bare `grep ...; grep_rc=$?`, found by cold-context review)
+    # matters under `set -e`: a plain non-zero exit from an unguarded
+    # command aborts the script on that line — the following `grep_rc=$?`
+    # would never run, so a failing grep would kill the script with a raw
+    # exit 1/2 instead of this guard's own EXIT_RUNTIME.
+    PATH_LINES_FILE=$(mktemp)
+    grep_rc=0
+    grep -- '"path"' "$MANIFEST" > "$PATH_LINES_FILE" 2>/dev/null || grep_rc=$?
+    if [ "$grep_rc" -gt 0 ]; then
+        echo "✗ Не удалось прочитать манифест обновлений для резервного разбора (grep вернул код ${grep_rc})." >&2
+        exit "$EXIT_RUNTIME"
+    fi
+
+    # Whole-line grammar match (peer-session 2026-08-21-12, Codex: validate
+    # the full line belongs to the supported form BEFORE extracting, not
+    # just eyeball what sed happened to return). Supported form only:
+    # optional leading whitespace, "path", optional whitespace, colon,
+    # optional whitespace, a double-quoted value with no embedded '"' or
+    # '\' (this fallback cannot decode JSON escapes), then anything after
+    # the closing quote (comma, more keys) is accepted without further
+    # constraint since it isn't part of the path value itself.
+    PATH_LINE_RE='^[[:space:]]*"path"[[:space:]]*:[[:space:]]*"[^"\\]+".*$'
+    PATH_ENTRIES_FOUND=0
+    : > "$MANIFEST_PARSED"
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        case "$line" in
+            *'"path"'*)
+                if ! printf '%s\n' "$line" | grep -Eq -- "$PATH_LINE_RE"; then
+                    echo "✗ Резервный разбор манифеста: строка с ключом \"path\" не в поддерживаемой форме (строка $((PATH_ENTRIES_FOUND + 1)) среди найденных совпадений)." >&2
+                    echo "  Поддерживается только: \"path\": \"значение_без_кавычек_и_обратных_слэшей\" на одной строке." >&2
+                    exit "$EXIT_RUNTIME"
+                fi
+                fpath=$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*"path"[[:space:]]*:[[:space:]]*"([^"\\]+)".*$/\1/')
+                if [ -z "$fpath" ]; then
+                    echo "✗ Резервный разбор манифеста: строка совпала с формой, но извлечённое значение пути пустое." >&2
+                    exit "$EXIT_RUNTIME"
+                fi
+                PATH_ENTRIES_FOUND=$((PATH_ENTRIES_FOUND + 1))
+                echo "$fpath|" >> "$MANIFEST_PARSED"
+                ;;
+        esac
+    done < "$PATH_LINES_FILE"
+    rm -f "$PATH_LINES_FILE"
+
+    if [ "$PATH_ENTRIES_FOUND" -ne "$PATH_KEY_TOTAL" ]; then
+        echo "✗ Резервный разбор манифеста нашёл ${PATH_KEY_TOTAL} ключ(ей) \"path\", но подтверждённо извлёк только ${PATH_ENTRIES_FOUND} запись(ей) — формат манифеста не полностью соответствует ожиданиям этого разбора." >&2
+        exit "$EXIT_RUNTIME"
+    fi
+fi
+
+# Duplicate-path check (peer-session 2026-08-21-09, Codex: must run on every
+# parsed manifest path BEFORE the skip/protected-file filtering below, not
+# after — a duplicate can disappear from DOWNLOAD_QUEUE if one copy gets
+# skip-if-hash-matches while the other doesn't, hiding the very condition
+# this check exists to catch). Two manifest entries writing the same
+# destination race inside download_batch()'s parallel transfer and each
+# other's --remove-on-error cleanup; this is corrupt manifest data, not a
+# transient network condition, so the run stops instead of continuing with
+# an unspecified winner.
+DUPLICATE_PATHS=$(cut -d'|' -f1 "$MANIFEST_PARSED" | LC_ALL=C sort | LC_ALL=C uniq -d)
+if [ -n "$DUPLICATE_PATHS" ]; then
+    echo "✗ Манифест обновлений содержит повторяющиеся пути файлов:" >&2
+    echo "$DUPLICATE_PATHS" | sed 's/^/  /' >&2
+    echo "  Обновление остановлено — параллельная докачка гарантированно верна только для уникальных путей." >&2
+    exit "$EXIT_RUNTIME"
+fi
 
 while IFS='|' read -r fpath fdesc expected_hash; do
     [ -z "$fpath" ] && continue
@@ -1060,56 +1296,100 @@ while IFS='|' read -r fpath fdesc expected_hash; do
     DOWNLOAD_QUEUE+=("$fpath")
     DOWNLOAD_DESCS+=("$fdesc")
     DOWNLOAD_HASHES+=("$expected_hash")
-done < <(
-    # Parse JSON: extract path|desc|sha256 lines. Path via argv (issue #402,
-    # defect 2), not interpolated into the -c string — see FILES_MATCH above.
-    if py_available; then
-        $PY_BIN -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    data = json.load(f)
-for entry in data.get('files', []):
-    print(entry['path'] + '|' + entry.get('desc', '') + '|' + entry.get('sha256', ''))
-" "$MANIFEST" 2>/dev/null
-    else
-        # Fallback: basic grep parsing if no working python interpreter.
-        # No sha256 in this path — integrity check below is skipped (already
-        # documented via SKIPPED_DOWNLOAD, not silently trusted).
-        grep '"path"' "$MANIFEST" | while read -r line; do
-            fpath=$(echo "$line" | sed 's/.*"path"[[:space:]]*:[[:space:]]*"//;s/".*//')
-            echo "$fpath|"
-        done
-    fi
-)
+done < "$MANIFEST_PARSED"
 
-# download_batch FPATH... — one curl --parallel call for the given fpaths
-# (positional args, not a nameref: `local -n` needs bash 4.3+, but this
-# script's #!/bin/bash shebang resolves to the system bash on macOS, which is
-# 3.2 — a nameref there fails "local: -n: invalid option" and silently no-ops
-# the whole download instead of erroring, since `local`'s exit status doesn't
-# trip `set -e`. Found live testing this exact function). Writes each file to
-# $TMPDIR_UPDATE/files/$fpath. -f makes curl treat an HTTP error page (404)
-# as a failure instead of writing it to disk as if it were the real file —
-# without it a missing manifest entry silently "downloads" successfully.
-# --remove-on-error then deletes that failed transfer's partial/error output
-# so a plain `[ -s ... ]` elsewhere is a reliable "did this file actually
-# arrive" check. `|| true`: a batch failing outright (e.g. every URL in it
-# unreachable) must not trip `set -e` and abort the whole update — the
-# per-file presence check right after this call is what actually decides
-# success per file, same as the old code's per-file `if curl ...` (Ф2
-# peer-session review; all found live testing this exact function).
+# curl_supports_parallel_batch — one-time capability probe (peer-session
+# 2026-08-21-09, consensus with Codex): --parallel/--parallel-max shipped
+# together in curl 7.66.0, --remove-on-error only in 7.83.0, so a curl with
+# the first two but not the third is a real, not hypothetical, combination.
+# `curl --help all` lists every option this curl build understands regardless
+# of network access — checked once here, not per-batch, since download_batch()
+# below runs multiple times (initial pass + retry).
+curl_supports_parallel_batch() {
+    local help_output
+    help_output=$(curl --help all 2>&1) || return 1
+    echo "$help_output" | grep -q -- '--parallel[^-]' || return 1
+    echo "$help_output" | grep -q -- '--parallel-max' || return 1
+    echo "$help_output" | grep -q -- '--remove-on-error' || return 1
+}
+USE_PARALLEL_DOWNLOAD=true
+if ! curl_supports_parallel_batch; then
+    USE_PARALLEL_DOWNLOAD=false
+    echo "⚠ Установленный curl не поддерживает параллельное скачивание (--parallel/--parallel-max/--remove-on-error) — используется более медленный последовательный режим." >&2
+fi
+
+# download_batch FPATH... — downloads the given fpaths to
+# $TMPDIR_UPDATE/files/$fpath, either as one curl --parallel call (fast path)
+# or one curl invocation per file (sequential fallback, only when
+# USE_PARALLEL_DOWNLOAD=false). Positional args, not a nameref: `local -n`
+# needs bash 4.3+, but this script's #!/bin/bash shebang resolves to the
+# system bash on macOS, which is 3.2 — a nameref there fails "local: -n:
+# invalid option" and silently no-ops the whole download instead of
+# erroring, since `local`'s exit status doesn't trip `set -e` (found live
+# testing this exact function).
+#
+# -f makes curl treat an HTTP error page (404) as a failure instead of
+# writing it to disk as if it were the real file — without it a missing
+# manifest entry silently "downloads" successfully. Existence of the
+# destination file (not its size — a legitimate zero-length file is a valid
+# transfer, peer-session 2026-08-21-08/09) is the "did this file actually
+# arrive" signal downstream, which is why both paths below guarantee a
+# failed transfer leaves no file behind: the parallel path via
+# --remove-on-error, the sequential path via a .part-then-rename so a
+# curl exit status other than 0 never leaves a destination file at all.
 download_batch() {
     [ $# -eq 0 ] && return 0
-    local cfg p dst
-    cfg=$(mktemp)
-    for p in "$@"; do
-        dst="$TMPDIR_UPDATE/files/$p"
-        mkdir -p "$(dirname "$dst")"
-        printf 'url = "%s/%s"\noutput = "%s"\n' "$RAW_BASE" "$p" "$dst" >> "$cfg"
-    done
-    # shellcheck disable=SC2086  # CURL_BASE_OPTS/_CURL_SSL_OPT intentionally unquoted (multi-token flags)
-    curl $CURL_BASE_OPTS $_CURL_SSL_OPT -f --remove-on-error --parallel --parallel-max 8 -K "$cfg" 2>/dev/null || true
-    rm -f "$cfg"
+    local p dst
+    if $USE_PARALLEL_DOWNLOAD; then
+        local cfg
+        # Under $TMPDIR_UPDATE, not a bare mktemp (cold-context review,
+        # peer-session 2026-08-21-09): cleanup_update()'s EXIT trap removes
+        # $TMPDIR_UPDATE wholesale, so a signal or crash between this mktemp
+        # and the `rm -f "$cfg"` below no longer leaks a temp file — the old
+        # bare mktemp location was outside that trap's reach.
+        cfg=$(mktemp "$TMPDIR_UPDATE/curl-batch.XXXXXX")
+        for p in "$@"; do
+            dst="$TMPDIR_UPDATE/files/$p"
+            mkdir -p "$(dirname "$dst")"
+            printf 'url = "%s/%s"\noutput = "%s"\n' "$RAW_BASE" "$p" "$dst" >> "$cfg"
+        done
+        # shellcheck disable=SC2086  # CURL_BASE_OPTS/_CURL_SSL_OPT intentionally unquoted (multi-token flags)
+        # `|| true`: a batch failing outright (e.g. every URL in it
+        # unreachable) must not trip `set -e` and abort the whole update —
+        # the per-file presence check right after this call is what
+        # actually decides success per file, same as the old code's
+        # per-file `if curl ...` (Ф2 peer-session review; all found live
+        # testing this exact function).
+        curl $CURL_BASE_OPTS $_CURL_SSL_OPT -f --remove-on-error --parallel --parallel-max 8 -K "$cfg" 2>/dev/null || true
+        rm -f "$cfg"
+    else
+        # Sequential fallback (peer-session 2026-08-21-09): one curl call
+        # per file, same CURL_BASE_OPTS/-f as the parallel path. No
+        # --remove-on-error here (that's the capability we're missing) —
+        # curl writes to a temp sibling and it's renamed into place only on
+        # exit status 0, so a failed transfer never leaves a destination
+        # file, matching the parallel path's guarantee.
+        #
+        # A predictable "$dst.part" suffix (cold-context review found this,
+        # peer-session 2026-08-21-09) can collide with a manifest entry that
+        # is itself literally that name — e.g. paths "a" and "a.part" both
+        # present: downloading "a" would overwrite "a.part"'s own live temp
+        # file mid-transfer, or clobber it after "a.part" already landed.
+        # mktemp in the same destination directory makes the temp name
+        # unpredictable and immune to any manifest content.
+        for p in "$@"; do
+            dst="$TMPDIR_UPDATE/files/$p"
+            mkdir -p "$(dirname "$dst")"
+            local dst_tmp
+            dst_tmp=$(mktemp "$dst.XXXXXX")
+            # shellcheck disable=SC2086
+            if curl $CURL_BASE_OPTS $_CURL_SSL_OPT -f -o "$dst_tmp" "$RAW_BASE/$p" 2>/dev/null; then
+                mv "$dst_tmp" "$dst"
+            else
+                rm -f "$dst_tmp"
+            fi
+        done
+    fi
 }
 
 # verify_batch_integrity — removes any downloaded file whose sha256 doesn't
@@ -1126,7 +1406,12 @@ verify_batch_integrity() {
         expected_hash="${DOWNLOAD_HASHES[$i]}"
         [ -n "$expected_hash" ] || continue
         remote_file="$TMPDIR_UPDATE/files/$fpath"
-        [ -s "$remote_file" ] || continue
+        # -f, not -s (peer-session 2026-08-21-08/09): a legitimate
+        # zero-length file is a valid transfer, not a failed one. Both
+        # download_batch() paths guarantee a failed transfer leaves no
+        # destination file at all (--remove-on-error / .part-then-rename),
+        # so existence alone is now a reliable "did this arrive" signal.
+        [ -f "$remote_file" ] || continue
         if [ "$(hash_file "$remote_file")" != "$expected_hash" ]; then
             # A retry can still recover this file from a different CDN edge
             # (see the retry-pass comment below), so this isn't necessarily
@@ -1142,7 +1427,11 @@ verify_batch_integrity() {
 }
 
 if [ ${#DOWNLOAD_QUEUE[@]} -gt 0 ]; then
-    printf "  Скачиваю %s файлов (до 8 параллельно)...\n" "${#DOWNLOAD_QUEUE[@]}"
+    if $USE_PARALLEL_DOWNLOAD; then
+        printf "  Скачиваю %s файлов (до 8 параллельно)...\n" "${#DOWNLOAD_QUEUE[@]}"
+    else
+        printf "  Скачиваю %s файлов (последовательно)...\n" "${#DOWNLOAD_QUEUE[@]}"
+    fi
     download_batch "${DOWNLOAD_QUEUE[@]}"
 
     # Integrity check BEFORE building the retry queue (Ф2 peer-session
@@ -1159,7 +1448,9 @@ if [ ${#DOWNLOAD_QUEUE[@]} -gt 0 ]; then
     # that already has the current content.
     RETRY_QUEUE=()
     for fpath in "${DOWNLOAD_QUEUE[@]}"; do
-        [ -s "$TMPDIR_UPDATE/files/$fpath" ] || RETRY_QUEUE+=("$fpath")
+        # -f, not -s — see verify_batch_integrity() above for why existence
+        # alone is now the correct "did this arrive" signal.
+        [ -f "$TMPDIR_UPDATE/files/$fpath" ] || RETRY_QUEUE+=("$fpath")
     done
     if [ ${#RETRY_QUEUE[@]} -gt 0 ]; then
         download_batch "${RETRY_QUEUE[@]}"
@@ -1184,7 +1475,9 @@ for _dq_i in "${!DOWNLOAD_QUEUE[@]}"; do
     # file here covers both causes — the category split (network vs.
     # integrity) that the old per-file loop reported is no longer knowable
     # after two retry rounds have run, so both land in the same list.
-    if [ ! -s "$REMOTE_FILE" ]; then
+    # -f, not -s — see verify_batch_integrity() above for why existence
+    # alone is now the correct "did this arrive" signal.
+    if [ ! -f "$REMOTE_FILE" ]; then
         SKIPPED_DOWNLOAD+=("$fpath")
         continue
     fi
@@ -1266,6 +1559,16 @@ if [ ${#SKIPPED_DOWNLOAD[@]} -gt 0 ]; then
         printf "  ? %s — файл не скачался, состояние неизвестно\n" "$f"
     done
     echo "  Эти файлы могут отличаться от upstream и быть перезаписаны при обычном запуске."
+    echo ""
+fi
+
+# Same principle as SKIPPED_DOWNLOAD above, for a different failure mode
+# (peer-session 2026-08-21-09): the fallback manifest parser has no sha256,
+# so "no differences found" here means "no differences among what we could
+# verify by name only" — the verdict below must say so, not read as an
+# ordinary clean success.
+if $INTEGRITY_TAINTED; then
+    echo "⚠ Проверка целостности не выполнялась (Python недоступен) — сравнивался только состав файлов, не их содержимое."
     echo ""
 fi
 
@@ -1365,7 +1668,7 @@ if [ "$TOTAL_CHANGES" -eq 0 ]; then
     apply_settings_merge_if_requested
     report_author_skip_summary
     echo "✓ Всё актуально. Обновлений нет. ($UNCHANGED файлов проверено)"
-    exit 0
+    exit_clean
 fi
 
 if [ ${#NEW_FILES[@]} -gt 0 ]; then
@@ -1429,7 +1732,7 @@ if $CHECK_ONLY; then
     echo "Режим --check: изменения не применяются."
     echo "Для применения: bash update.sh"
     assert_self_unmutated
-    exit 0
+    exit_clean
 fi
 
 # === Step 4: Confirmation ===
@@ -2446,3 +2749,4 @@ if $CLAUDE_CONFLICT_DETECTED || [ "${#CLAUDE_BASE_MISSING_FILES[@]}" -gt 0 ]; th
 fi
 
 finish_update_transaction
+exit_clean

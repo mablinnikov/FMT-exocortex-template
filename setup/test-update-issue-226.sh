@@ -127,6 +127,12 @@ git -C "$SCRIPT_DIR" checkout -q -b some-pr-branch
 # ------------------------------------------------------------------
 SHIM_DIR="$TEST_ROOT/shim"
 mkdir -p "$SHIM_DIR"
+# WP-546 Ф5 (peer-session 2026-08-21-12, Codex): --help all is written to a
+# trace file (SHIM_TRACE), not just answered — Scenario F/G below assert on
+# the trace, not just on update.sh's own printed message. A test that only
+# checks the message can pass even if the capability-check call itself never
+# happened (found live: this exact class of false-coverage is why Scenario
+# F/G exist at all — see the долг 1 writeup in report.md of that session).
 cat > "$SHIM_DIR/curl" <<SHIMEOF
 #!/bin/bash
 # WP-546 Ф2 (main 8112b1a) switched update.sh's batch download from one
@@ -136,6 +142,16 @@ cat > "$SHIM_DIR/curl" <<SHIMEOF
 # fell through with url="" out="", hit the else branch below and exited 22
 # for the WHOLE batch. Found live: 9/19 scenarios in this file failing on
 # real CI after that merge (Scenario A/C/E), traced to exactly this gap.
+#
+# WP-546 Ф5 (peer-session 2026-08-21-12): update.sh:1170-1182's
+# curl_supports_parallel_batch() probes "curl --help all" before its first
+# download_batch() call — this shim didn't understand that call either,
+# fell through the same way (empty url/out -> simulate_one_transfer("","")
+# -> exit 22), so the probe always read "not supported" and every scenario
+# in this file silently exercised only the sequential fallback path, never
+# the parallel one, despite all 19 showing PASS. CURL_SHIM_PARALLEL_SUPPORTED
+# (default 1, set by the caller) controls the answer explicitly instead of
+# leaving it to shim-internal chance.
 simulate_one_transfer() {
     local u="\$1" o="\$2"
     local rel="\${u#*/main/}"
@@ -149,6 +165,23 @@ simulate_one_transfer() {
     fi
 }
 
+if [ "\$1" = "--help" ] && [ "\$2" = "all" ]; then
+    echo "help-all" >> "${TEST_ROOT}/shim-trace.log"
+    if [ "\${CURL_SHIM_PARALLEL_SUPPORTED:-1}" = "1" ]; then
+        # Trailing space after each flag matters: real curl's --help all pads
+        # with spaces before the description (e.g. " -Z, --parallel   Perform
+        # transfers..."), so update.sh:1164's '--parallel[^-]' pattern needs a
+        # non-'-' character right after the flag name to match. A bare
+        # "--parallel\n" with nothing after it doesn't match — found live,
+        # this exact gap made Scenario F below report "not supported" even
+        # with CURL_SHIM_PARALLEL_SUPPORTED=1.
+        printf -- '  --parallel \\n  --parallel-max <num>\\n  --remove-on-error \\n'
+        exit 0
+    fi
+    printf -- '  -o, --output <file>\\n  -f, --fail\\n'
+    exit 0
+fi
+
 url="" out="" cfgfile=""
 args=("\$@")
 for ((i=0; i<\${#args[@]}; i++)); do
@@ -158,6 +191,8 @@ for ((i=0; i<\${#args[@]}; i++)); do
         -K) cfgfile="\${args[i+1]}" ;;
     esac
 done
+[ -n "\$cfgfile" ] && echo "batch-K" >> "${TEST_ROOT}/shim-trace.log"
+[ -n "\$out" ] && [ -z "\$cfgfile" ] && echo "single-o" >> "${TEST_ROOT}/shim-trace.log"
 
 if [ -n "\$cfgfile" ]; then
     # -K batch mode (download_batch()): url/output come in pairs, one per
@@ -456,6 +491,246 @@ if [ "$(sha256sum "$SCRIPT_DIR/update-manifest.json" | cut -d' ' -f1)" = "$MANIF
     pass "E: local update-manifest.json was not stamped as updated"
 else
     fail "E: local manifest changed despite the aborted run"
+fi
+
+# ------------------------------------------------------------------
+# Scenario F/G (WP-546 Ф5, peer-session 2026-08-21-12): assert that
+# curl_supports_parallel_batch()'s capability-check actually drives which
+# transport update.sh uses — not just that the printed message matches,
+# which a shim answering "not supported" for every run would satisfy
+# trivially (found live: this exact gap made all 19 scenarios in this file
+# silently exercise only the sequential fallback for weeks). Assertions
+# read $TEST_ROOT/shim-trace.log, written by the shim itself on every call,
+# not update.sh's own stdout — a stronger signal than a message string.
+# ------------------------------------------------------------------
+echo "--- Scenario F: capability-check reports supported -> parallel batch path used ---"
+printf '# Dummy memo v4\n' > "$UPSTREAM/memory/dummy-memo.md"
+python3 -c "
+import hashlib, json
+from pathlib import Path
+manifest_path = '$UPSTREAM/update-manifest.json'
+with open(manifest_path) as f:
+    manifest = json.load(f)
+for entry in manifest['files']:
+    if entry['path'] == 'memory/dummy-memo.md':
+        entry['sha256'] = hashlib.sha256((Path('$UPSTREAM') / entry['path']).read_bytes()).hexdigest()
+manifest['files'] = [e for e in manifest['files'] if e['path'] != 'memory/never-fetched.md']
+with open(manifest_path, 'w') as f:
+    json.dump(manifest, f)
+"
+rm -f "$TEST_ROOT/shim-trace.log"
+CURL_SHIM_PARALLEL_SUPPORTED=1 PATH="$SHIM_DIR:$PATH" HOME="$FAKE_HOME" bash "$SCRIPT_DIR/update.sh" --yes > "$TEST_ROOT/out-f.log" 2>&1
+RC_F=$?
+
+if [ "$RC_F" -eq 0 ]; then
+    pass "F: update.sh exits 0 when curl supports the parallel batch options"
+else
+    fail "F: expected exit 0, got $RC_F"; cat "$TEST_ROOT/out-f.log" >&2
+fi
+
+if grep -q "^help-all$" "$TEST_ROOT/shim-trace.log" 2>/dev/null; then
+    pass "F: the capability-check call (curl --help all) actually happened"
+else
+    fail "F: no help-all trace entry — capability-check was never invoked"
+fi
+
+if grep -q "^batch-K$" "$TEST_ROOT/shim-trace.log" 2>/dev/null; then
+    pass "F: the parallel batch transport (-K config mode) was actually used"
+else
+    fail "F: no batch-K trace entry — download did not use the parallel path"
+fi
+
+if grep -q "до 8 параллельно" "$TEST_ROOT/out-f.log"; then
+    pass "F: the printed message matches the parallel path"
+else
+    fail "F: expected the parallel-mode message, output was:"; cat "$TEST_ROOT/out-f.log" >&2
+fi
+
+echo "--- Scenario G: capability-check reports unsupported -> sequential fallback used ---"
+printf '# Dummy memo v5\n' > "$UPSTREAM/memory/dummy-memo.md"
+python3 -c "
+import hashlib, json
+from pathlib import Path
+manifest_path = '$UPSTREAM/update-manifest.json'
+with open(manifest_path) as f:
+    manifest = json.load(f)
+for entry in manifest['files']:
+    if entry['path'] == 'memory/dummy-memo.md':
+        entry['sha256'] = hashlib.sha256((Path('$UPSTREAM') / entry['path']).read_bytes()).hexdigest()
+with open(manifest_path, 'w') as f:
+    json.dump(manifest, f)
+"
+rm -f "$TEST_ROOT/shim-trace.log"
+CURL_SHIM_PARALLEL_SUPPORTED=0 PATH="$SHIM_DIR:$PATH" HOME="$FAKE_HOME" bash "$SCRIPT_DIR/update.sh" --yes > "$TEST_ROOT/out-g.log" 2>&1
+RC_G=$?
+
+if [ "$RC_G" -eq 0 ]; then
+    pass "G: update.sh exits 0 on the sequential fallback path too"
+else
+    fail "G: expected exit 0, got $RC_G"; cat "$TEST_ROOT/out-g.log" >&2
+fi
+
+if grep -q "^help-all$" "$TEST_ROOT/shim-trace.log" 2>/dev/null; then
+    pass "G: the capability-check call happened here too"
+else
+    fail "G: no help-all trace entry"
+fi
+
+if ! grep -q "^batch-K$" "$TEST_ROOT/shim-trace.log" 2>/dev/null; then
+    pass "G: the parallel batch transport was NOT used"
+else
+    fail "G: batch-K trace entry present — fallback did not actually engage"
+fi
+
+if grep -q "^single-o$" "$TEST_ROOT/shim-trace.log" 2>/dev/null; then
+    pass "G: individual sequential transfers were actually made"
+else
+    fail "G: no single-o trace entries — sequential fallback made no transfers at all"
+fi
+
+if grep -q "последовательно" "$TEST_ROOT/out-g.log" && ! grep -q "до 8 параллельно" "$TEST_ROOT/out-g.log"; then
+    pass "G: the printed message matches the sequential path"
+else
+    fail "G: expected the sequential-mode message, output was:"; cat "$TEST_ROOT/out-g.log" >&2
+fi
+
+# ------------------------------------------------------------------
+# Scenario H (WP-546 Ф5, peer-session 2026-08-21-12, Codex): the grep-only
+# fallback parser (no Python) fails closed on a compact manifest — two or
+# more "path" keys sharing one physical line — instead of the old behavior
+# of silently extracting only the FIRST match on that line and losing every
+# other entry with no signal at all. NO_PY_DIR shadows python3/python ahead
+# of SHIM_DIR so py_available() genuinely returns false (a bare "not in
+# SHIM_DIR" isn't enough — the real python3 elsewhere on the test runner's
+# PATH would still be found).
+# ------------------------------------------------------------------
+echo "--- Scenario H: fallback parser fails closed on a compact/minified manifest (High 2) ---"
+NO_PY_DIR="$TEST_ROOT/no-python"
+mkdir -p "$NO_PY_DIR"
+for stub in python3 python py; do
+    cat > "$NO_PY_DIR/$stub" <<'STUBEOF'
+#!/bin/bash
+exit 127
+STUBEOF
+    chmod +x "$NO_PY_DIR/$stub"
+done
+
+# A manifest with two "path" keys on one physical line — the exact shape
+# the old single-match-per-line sed would have silently mishandled.
+cat > "$UPSTREAM/update-manifest.json" <<'EOF'
+{"schema_version": 2, "version": "0.99.0-test-226", "files": [{"path": "CLAUDE.md", "sha256": "0"}, {"path": "memory/dummy-memo.md", "sha256": "0"}], "deprecated_files": []}
+EOF
+
+rm -f "$TEST_ROOT/shim-trace.log"
+set +e
+PATH="$NO_PY_DIR:$SHIM_DIR:$PATH" HOME="$FAKE_HOME" bash "$SCRIPT_DIR/update.sh" --check > "$TEST_ROOT/out-h.log" 2>&1
+RC_H=$?
+set -e
+
+if [ "$RC_H" -eq 3 ]; then
+    pass "H: update.sh exits with EXIT_RUNTIME(3) on a compact manifest without Python"
+else
+    fail "H: expected exit 3, got $RC_H"; cat "$TEST_ROOT/out-h.log" >&2
+fi
+
+if grep -q "компактном/минифицированном формате" "$TEST_ROOT/out-h.log"; then
+    pass "H: the compact-format guard message is shown"
+else
+    fail "H: no compact-format guard message, output was:"; cat "$TEST_ROOT/out-h.log" >&2
+fi
+
+if grep -q "Не удалось разобрать манифест" "$TEST_ROOT/out-h.log"; then
+    fail "H: wrong error path — hit the Python-parser failure message, not the fallback guard"
+else
+    pass "H: the fallback-specific guard fired, not the Python-parser error path"
+fi
+
+# Regression guard: a normally-formatted (one "path" per line, matching
+# this repo's own manifest-generator layout — see update.sh:1116's
+# PATH_LINE_RE for the exact grammar) manifest must still parse under the
+# same no-Python PATH — the compact-format check must not become a blanket
+# "no Python -> fail" rule. The fixture below deliberately mirrors the real
+# generator's one-field-per-line shape, not a hand-written {"path": ...}
+# single-line object — that latter shape is itself unsupported (see
+# Scenario H's single-file negative case further down) and would make this
+# "regression guard" silently test the wrong thing.
+cat > "$UPSTREAM/update-manifest.json" <<'EOF'
+{
+  "schema_version": 2,
+  "version": "0.99.0-test-226",
+  "files": [
+    {
+      "path": "CLAUDE.md",
+      "sha256": "0"
+    },
+    {
+      "path": "memory/dummy-memo.md",
+      "sha256": "0"
+    }
+  ],
+  "deprecated_files": []
+}
+EOF
+set +e
+PATH="$NO_PY_DIR:$SHIM_DIR:$PATH" HOME="$FAKE_HOME" bash "$SCRIPT_DIR/update.sh" --check > "$TEST_ROOT/out-h-normal.log" 2>&1
+RC_H_NORMAL=$?
+set -e
+
+if [ "$RC_H_NORMAL" -eq 4 ]; then
+    pass "H: a normally-formatted manifest still parses without Python (exit EXIT_TAINTED=4, not blocked)"
+else
+    fail "H: expected exit 4 on a normal one-path-per-line manifest, got $RC_H_NORMAL"; cat "$TEST_ROOT/out-h-normal.log" >&2
+fi
+
+# Negative case (peer-session 2026-08-21-12, second cold-context round):
+# a compact single-file manifest is valid JSON and was briefly believed to
+# be supported by this fallback (a "path" surrounded by other content on
+# the same line still contains the key) — Codex rejected loosening the
+# grammar to allow that, since an unconstrained prefix before "path" could
+# just as easily hide corruption or a "path" match inside an unrelated
+# string value. This asserts the deliberate scope limit explicitly, not
+# just implicitly via Scenario H's two-path-per-line case above.
+cat > "$UPSTREAM/update-manifest.json" <<'EOF'
+{"schema_version": 2, "version": "0.99.0-test-226", "files": [{"path": "single.md", "sha256": "0"}], "deprecated_files": []}
+EOF
+set +e
+PATH="$NO_PY_DIR:$SHIM_DIR:$PATH" HOME="$FAKE_HOME" bash "$SCRIPT_DIR/update.sh" --check > "$TEST_ROOT/out-h-singlefile.log" 2>&1
+RC_H_SINGLEFILE=$?
+set -e
+
+if [ "$RC_H_SINGLEFILE" -eq 3 ]; then
+    pass "H: a compact single-file manifest is deliberately unsupported (exit EXIT_RUNTIME=3, not a silent pass)"
+else
+    fail "H: expected exit 3 on a compact single-file manifest, got $RC_H_SINGLEFILE"; cat "$TEST_ROOT/out-h-singlefile.log" >&2
+fi
+
+# Negative case (third cold-context round, same peer-session): a manifest
+# with zero "path" keys was the concrete counterexample that caught a real
+# `set -e` bug — `grep ... > file; grep_rc=$?` (no `||`) aborts the script
+# on the FIRST non-zero exit (grep's own "no matches" status 1 counts),
+# so `grep_rc=$?` never runs and the script dies with a raw exit 1 instead
+# of this guard's own EXIT_RUNTIME=3. `files: []` is a legitimate manifest
+# shape the real generator can produce (an update with only deprecated
+# files, no new/changed ones) — it must fail closed with the guard's own
+# diagnostic, not a bare shell death with no message at all.
+cat > "$UPSTREAM/update-manifest.json" <<'EOF'
+{"schema_version": 2, "version": "0.99.0-test-226", "files": [], "deprecated_files": []}
+EOF
+set +e
+PATH="$NO_PY_DIR:$SHIM_DIR:$PATH" HOME="$FAKE_HOME" bash "$SCRIPT_DIR/update.sh" --check > "$TEST_ROOT/out-h-nopath.log" 2>&1
+RC_H_NOPATH=$?
+set -e
+
+if [ "$RC_H_NOPATH" -eq 3 ]; then
+    pass "H: a manifest with zero \"path\" keys fails closed with EXIT_RUNTIME(3), not a raw shell death"
+else
+    fail "H: expected exit 3 on a manifest with no path keys, got $RC_H_NOPATH"; cat "$TEST_ROOT/out-h-nopath.log" >&2
+fi
+
+if grep -q "Не удалось прочитать манифест" "$TEST_ROOT/out-h-nopath.log"; then
+    pass "H: the read-error guard message is shown, not a silent bare exit"
+else
+    fail "H: no read-error guard message, output was:"; cat "$TEST_ROOT/out-h-nopath.log" >&2
 fi
 
 echo ""
