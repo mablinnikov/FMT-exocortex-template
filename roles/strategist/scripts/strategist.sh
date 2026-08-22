@@ -141,9 +141,12 @@ notify_telegram() {
 
 run_claude() {
     local command_file="$1"
-    # Опциональная модель: второй аргумент или IWE_STRATEGIST_MODEL из env.
-    # Приоритет: аргумент > env > пустая строка (дефолт Claude CLI).
-    local model_override="${2:-${IWE_STRATEGIST_MODEL:-}}"
+    # Опциональная модель: IWE_STRATEGIST_MODEL из env или второй аргумент.
+    # Приоритет env выше аргумента: раньше было наоборот, а модель передают
+    # почти все вызовы — переменная не могла сработать ни разу и оставалась
+    # мёртвой настройкой. Аргумент теперь задаёт класс модели по умолчанию для
+    # сценария, env перекрывает его на всей установке.
+    local model_override="${IWE_STRATEGIST_MODEL:-${2:-}}"
     local command_path="$PROMPTS_DIR/$command_file.md"
 
     if [ ! -f "$command_path" ]; then
@@ -305,7 +308,7 @@ case "$1" in
 
         if [ "$DAY_OF_WEEK" -eq "$STRATEGY_DAY_NUM" ]; then
             log "Strategy day ($STRATEGY_DAY_NAME): running session prep"
-            run_claude "session-prep" "claude-sonnet-4-6"
+            run_claude "session-prep" "sonnet"
             notify_telegram "session-prep"
         else
             # Canonical Day Open pipeline: deterministic scaffold (reads priorities.yaml,
@@ -320,13 +323,13 @@ case "$1" in
                 # instead of a generic "unavailable/failed". The delivery
                 # graph itself is WP-529 F7 scope, no silent bridge here.
                 log "WARN: Day Open pipeline not found at $DAY_OPEN_PIPELINE — canonical pipeline is not delivered on this install (WP-529 F7); fallback to free-form day-plan prompt"
-                run_claude "day-plan" "claude-sonnet-4-6"
+                run_claude "day-plan" "sonnet"
                 notify_telegram "day-plan"
             elif bash "$DAY_OPEN_PIPELINE" >> "$LOG_FILE" 2>&1; then
                 log "Morning: Day Open pipeline OK (scaffold + llm-fill)"
             else
                 log "WARN: Day Open pipeline failed (see lines above in this log) — fallback to free-form day-plan prompt"
-                run_claude "day-plan" "claude-sonnet-4-6"
+                run_claude "day-plan" "sonnet"
                 notify_telegram "day-plan"
             fi
         fi
@@ -350,7 +353,7 @@ case "$1" in
             exit 0
         fi
         log "Sunday: running week review"
-        run_claude "week-review" "claude-opus-4-7"
+        run_claude "week-review" "opus"
         # Fallback push for Knowledge Index (week-review creates a post there)
         # KI_REPO may not exist for all users — guard with [ -d ]
         KI_REPO="$HOME/IWE/DS-Knowledge-Index"
@@ -361,12 +364,12 @@ case "$1" in
         ;;
     "session-prep")
         log "Manual: running session prep"
-        run_claude "session-prep" "claude-sonnet-4-6"
+        run_claude "session-prep" "sonnet"
         notify_telegram "session-prep"
         ;;
     "day-plan")
         log "Manual: running day plan"
-        run_claude "day-plan" "claude-sonnet-4-6"
+        run_claude "day-plan" "sonnet"
         notify_telegram "day-plan"
         ;;
     "note-review")
@@ -427,7 +430,7 @@ case "$1" in
         ;;
     "day-close")
         log "Manual: running day close"
-        run_claude "day-close" "claude-sonnet-4-6"
+        run_claude "day-close" "sonnet"
         notify_telegram "day-close"
         ;;
     "strategy-session")
