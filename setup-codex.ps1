@@ -234,7 +234,7 @@ $strategyAgents = @'
 
 Before changing this repository, read `../AGENTS.md` and `../memory/MEMORY.md`.
 This is the private governance repository for plans, strategy, captures, decisions, and session results.
-Use Russian unless the user writes in English. Never invent goals or commitments for the user. Do not commit or push unless the user explicitly requests it.
+Use Russian unless the user writes in English. Never invent goals or commitments for the user.
 '@
 Write-Utf8File -Path (Join-Path $strategyDir 'AGENTS.md') -Content $strategyAgents
 
@@ -249,7 +249,7 @@ description: Run the IWE Open-Work-Close protocol for any substantial task in th
 3. State the task, expected result, constraints, and verification before substantial changes.
 4. During work, capture durable decisions or useful knowledge in the appropriate workspace file, not only in chat.
 5. For closing, use `memory/protocol-close.md` conceptually: record the result, unresolved items, and the next action.
-6. Do not commit, push, schedule, or contact external systems unless the user explicitly requests it.
+6. Do not schedule or contact external systems unless the user explicitly requests it.
 '@
 Write-CodexSkill -Name 'iwe-session' -Content $sessionSkill
 

@@ -2605,7 +2605,7 @@
     },
     {
       "path": "setup-codex.ps1",
-      "sha256": "e9fda76a34ab7a444b43041a5fdfc06dfc5c562789f25288134b9929ad91498d"
+      "sha256": "2a38fee707a97262e6174328f2df587d7f15afa41e4d2cc094fb2e8bb5ba3335"
     },
     {
       "path": "setup.sh",
