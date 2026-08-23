@@ -7,6 +7,21 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MANIFEST="$SCRIPT_DIR/update-manifest.json"
 
+# Git Bash/Cygwin may invoke native Windows Python. Bash paths such as
+# /c/Users/... are valid for shell tools but not for that interpreter.
+# Convert only for native Windows Python; POSIX Python keeps POSIX paths.
+PYTHON_OS=$(python3 -c 'import os; print(os.name)')
+python_native_path() {
+    if [ "$PYTHON_OS" = "nt" ] && command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$1"
+    else
+        printf '%s\n' "$1"
+    fi
+}
+PY_MANIFEST=$(python_native_path "$MANIFEST")
+PY_SCRIPT_DIR=$(python_native_path "$SCRIPT_DIR")
+GIT_AUTOCRLF=$(git -C "$SCRIPT_DIR" config --get core.autocrlf 2>/dev/null || true)
+
 # Версия из CHANGELOG.md (первый ## [X.Y.Z])
 VERSION=$(grep -m1 '^\#\# \[[0-9]' "$SCRIPT_DIR/CHANGELOG.md" | sed 's/.*\[\(.*\)\].*/\1/')
 
@@ -265,52 +280,105 @@ done < <(git -C "$SCRIPT_DIR" ls-files | LC_ALL=C sort)
 # Читаем существующий манифест для deprecated_files (ручное управление)
 DEPRECATED_JSON="[]"
 if [ -f "$MANIFEST" ]; then
-    DEPRECATED_JSON=$(python3 -c "
+    DEPRECATED_JSON=$(MANIFEST_PATH="$PY_MANIFEST" python3 -c '
 import json
-with open('$MANIFEST') as f:
+import os
+with open(os.environ["MANIFEST_PATH"], encoding="utf-8") as f:
     data = json.load(f)
-print(json.dumps(data.get('deprecated_files', []), ensure_ascii=False))
-")
+print(json.dumps(data.get("deprecated_files", []), ensure_ascii=False))
+')
 fi
 
 TMPDIR=$(mktemp -d)
 # Через printf: построчная запись без bash-array-interpolation внутри строки
 printf '%s\n' "${FILES[@]}" > "$TMPDIR/files.txt"
 printf '%s\n' "${EXCLUDED_PATHS[@]}" > "$TMPDIR/excluded.txt"
+git -C "$SCRIPT_DIR" diff --name-only HEAD -- > "$TMPDIR/dirty.txt"
+PY_FILES_LIST=$(python_native_path "$TMPDIR/files.txt")
+PY_EXCLUDED_LIST=$(python_native_path "$TMPDIR/excluded.txt")
+PY_DIRTY_LIST=$(python_native_path "$TMPDIR/dirty.txt")
 
 # Генерируем JSON
-python3 -c "
+FILES_LIST_PATH="$PY_FILES_LIST" \
+EXCLUDED_LIST_PATH="$PY_EXCLUDED_LIST" \
+DIRTY_LIST_PATH="$PY_DIRTY_LIST" \
+REPO_ROOT_PATH="$PY_SCRIPT_DIR" \
+MANIFEST_PATH="$PY_MANIFEST" \
+MANIFEST_VERSION="$VERSION" \
+DEPRECATED_JSON="$DEPRECATED_JSON" \
+GIT_AUTOCRLF="$GIT_AUTOCRLF" \
+python3 -c '
 import hashlib
+import io
 import json
+import os
+import subprocess
 from pathlib import Path
 
-files = [line.strip() for line in open('$TMPDIR/files.txt') if line.strip()]
-excluded = [line.strip() for line in open('$TMPDIR/excluded.txt') if line.strip()]
-root = Path('$SCRIPT_DIR')
+with open(os.environ["FILES_LIST_PATH"], encoding="utf-8") as source:
+    files = [line.strip() for line in source if line.strip()]
+with open(os.environ["EXCLUDED_LIST_PATH"], encoding="utf-8") as source:
+    excluded = [line.strip() for line in source if line.strip()]
+with open(os.environ["DIRTY_LIST_PATH"], encoding="utf-8") as source:
+    dirty = {line.strip() for line in source if line.strip()}
+root = Path(os.environ["REPO_ROOT_PATH"])
+normalize_crlf = os.environ["GIT_AUTOCRLF"].lower() in {"true", "input"}
+
+# Read unchanged content from the canonical Git blobs in one batch. This is
+# both line-ending invariant and much faster than spawning `git show` once per
+# manifest entry. Dirty tracked files still come from the working tree below.
+head_blobs = {}
+unchanged = [path for path in files if path not in dirty]
+if unchanged:
+    requests = "".join(f"HEAD:{path}\n" for path in unchanged).encode("utf-8")
+    result = subprocess.run(
+        ["git", "-C", str(root), "cat-file", "--batch"],
+        input=requests,
+        stdout=subprocess.PIPE,
+        check=True,
+    )
+    output = io.BytesIO(result.stdout)
+    for path in unchanged:
+        header = output.readline().decode("utf-8").rstrip("\n")
+        if header.endswith(" missing"):
+            raise RuntimeError(f"tracked path is missing from HEAD: {path}")
+        size = int(header.rsplit(" ", 1)[1])
+        head_blobs[path] = output.read(size)
+        output.read(1)  # batch record separator
 
 def manifest_entry(path):
-    digest = hashlib.sha256((root / path).read_bytes()).hexdigest()
-    return {'path': path, 'sha256': digest}
+    content = head_blobs.get(path)
+    if content is not None:
+        return {"path": path, "sha256": hashlib.sha256(content).hexdigest()}
+
+    content = (root / path).read_bytes()
+    # Match Git clean-filter semantics under core.autocrlf. Text files are
+    # stored and delivered with LF; binary files (NUL in the probe window)
+    # keep their bytes unchanged.
+    if normalize_crlf and b"\0" not in content[:8000]:
+        content = content.replace(b"\r\n", b"\n")
+    digest = hashlib.sha256(content).hexdigest()
+    return {"path": path, "sha256": digest}
 
 data = {
-    'schema_version': 2,
-    'version': '$VERSION',
-    'description': 'Манифест платформенных файлов FMT-exocortex-template. Используется update.sh для доставки обновлений.',
-    'files': [manifest_entry(p) for p in files],
-    'excluded_paths': excluded,
-    'deprecated_files': json.loads('''$DEPRECATED_JSON'''),
+    "schema_version": 2,
+    "version": os.environ["MANIFEST_VERSION"],
+    "description": "Манифест платформенных файлов FMT-exocortex-template. Используется update.sh для доставки обновлений.",
+    "files": [manifest_entry(p) for p in files],
+    "excluded_paths": excluded,
+    "deprecated_files": json.loads(os.environ["DEPRECATED_JSON"]),
 }
 
 # Убираем пустые массивы
-if not data['excluded_paths']:
-    del data['excluded_paths']
-if not data['deprecated_files']:
-    del data['deprecated_files']
+if not data["excluded_paths"]:
+    del data["excluded_paths"]
+if not data["deprecated_files"]:
+    del data["deprecated_files"]
 
-with open('$MANIFEST', 'w', encoding='utf-8') as f:
+with open(os.environ["MANIFEST_PATH"], "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
-    f.write('\n')
-"
+    f.write("\n")
+'
 
 rm -rf "$TMPDIR"
 

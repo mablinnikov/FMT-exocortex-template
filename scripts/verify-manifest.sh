@@ -12,6 +12,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MANIFEST="$SCRIPT_DIR/update-manifest.json"
 GENERATOR="$SCRIPT_DIR/generate-manifest.sh"
 
+PYTHON_OS=$(python3 -c 'import os; print(os.name)')
+python_native_path() {
+    if [ "$PYTHON_OS" = "nt" ] && command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$1"
+    else
+        printf '%s\n' "$1"
+    fi
+}
+PY_MANIFEST=$(python_native_path "$MANIFEST")
+
 if [ ! -f "$GENERATOR" ]; then
     echo "ERROR: generate-manifest.sh не найден: $GENERATOR"
     exit 2
@@ -24,32 +34,50 @@ fi
 
 # Сохраняем текущий манифест (read-only backup)
 BACKUP=$(mktemp)
-trap 'rm -f "$BACKUP"' EXIT
 cp "$MANIFEST" "$BACKUP"
 
+TMP_MANIFEST=$(mktemp)
+GENERATOR_LOG=$(mktemp)
+cleanup() {
+    cp "$BACKUP" "$MANIFEST"
+    rm -f "$BACKUP" "$TMP_MANIFEST" "$GENERATOR_LOG"
+}
+trap cleanup EXIT
+
 # Сохраняем версию из текущего манифеста (generate-manifest.sh берёт из CHANGELOG)
-CURRENT_VERSION=$(python3 -c "import json; print(json.load(open('$MANIFEST'))['version'])")
+CURRENT_VERSION=$(MANIFEST_PATH="$PY_MANIFEST" python3 -c '
+import json
+import os
+with open(os.environ["MANIFEST_PATH"], encoding="utf-8") as source:
+    print(json.load(source)["version"])
+')
 
 # Создаём временный манифест через generate-manifest.sh
-TMP_MANIFEST=$(mktemp)
-trap 'rm -f "$BACKUP" "$TMP_MANIFEST"' EXIT
+PY_TMP_MANIFEST=$(python_native_path "$TMP_MANIFEST")
 
 # Генерируем новый манифест во временный файл
-bash "$GENERATOR" >/dev/null 2>&1 || true
+if ! bash "$GENERATOR" >"$GENERATOR_LOG" 2>&1; then
+    echo "ERROR: generate-manifest.sh завершился с ошибкой" >&2
+    cat "$GENERATOR_LOG" >&2
+    exit 2
+fi
 
 # Копируем сгенерированный манифест во временный файл
 cp "$MANIFEST" "$TMP_MANIFEST"
 
 # Восстанавливаем версию в сгенерированном (CHANGELOG может быть "Unreleased")
-python3 -c "
+TMP_MANIFEST_PATH="$PY_TMP_MANIFEST" \
+CURRENT_VERSION="$CURRENT_VERSION" \
+python3 -c '
 import json
-with open('$TMP_MANIFEST') as f:
+import os
+with open(os.environ["TMP_MANIFEST_PATH"], encoding="utf-8") as f:
     data = json.load(f)
-data['version'] = '$CURRENT_VERSION'
-with open('$TMP_MANIFEST', 'w') as f:
+data["version"] = os.environ["CURRENT_VERSION"]
+with open(os.environ["TMP_MANIFEST_PATH"], "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
-    f.write('\n')
-"
+    f.write("\n")
+'
 
 # Восстанавливаем оригинальный манифест (generate-manifest.sh его перезаписал)
 cp "$BACKUP" "$MANIFEST"

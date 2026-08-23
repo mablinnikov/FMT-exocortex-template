@@ -33,6 +33,11 @@ trap cleanup EXIT INT TERM
 # for the wrong reason. `git clone --local` gives a real repo at HEAD.
 git clone --local --quiet "$ROOT" "$SCRATCH" \
     || { fail "git clone of $ROOT failed"; exit 1; }
+# The test may run before the generator change is committed. Overlay the
+# working-tree script so the regression harness exercises the implementation
+# under review rather than the previous HEAD from the scratch clone.
+cp "$ROOT/generate-manifest.sh" "$SCRATCH/generate-manifest.sh" \
+    || { fail "copy working generate-manifest.sh failed"; exit 1; }
 
 echo "--- generate-manifest.sh must register EVERY setup/ file it skips ---"
 ( cd "$SCRATCH" && bash generate-manifest.sh >/dev/null 2>&1 ) \

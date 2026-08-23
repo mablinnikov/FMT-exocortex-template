@@ -193,7 +193,7 @@
     },
     {
       "path": ".claude/rules-lazy/drift-guard.md",
-      "sha256": "8099ecc27c790619169409236c470300ff249f9614828969cb1c7a71b92109da"
+      "sha256": "fa1b199574383db8dbde115de37fac8f31f4d29ad568e453dac588895cc398a0"
     },
     {
       "path": ".claude/rules-lazy/hooks-bypass-gate.md",
@@ -653,15 +653,15 @@
     },
     {
       "path": "AGENTS.md",
-      "sha256": "7a94fb8ac1cb077412d7facfa0c08655e99a79503efbea3056ea586d5cd92652"
+      "sha256": "38082ef2208ba7a3f5fdc64881cb5b5f35f0c6d2c48da997d75b5bfd4717057e"
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "75769715b411bc5a6b842a2822c3035ce04ed10c88041482dde578d2230f7625"
+      "sha256": "deade913d82cd73f8e6663a4bd1d0f5071722c008f487443dba6014063ba0e9f"
     },
     {
       "path": "CLAUDE.md",
-      "sha256": "ca9f3bb7019e288a20067bcd10faa8f8ecd94d48813c19dd09fea57661f2694d"
+      "sha256": "f3c46ec6406a52abd87872a07f909914a1f44430a01abb9c8ea146179a1c00c4"
     },
     {
       "path": "ONTOLOGY.md",
@@ -985,7 +985,7 @@
     },
     {
       "path": "generate-manifest.sh",
-      "sha256": "fa5b37637ba1c5af0e544134e08184e69245073e6aaef545fd9e93d1b46d8e4d"
+      "sha256": "77fadc3a80c2b14fe7313a1ea33e81f218897c58f64259a2a4964174d291bdf5"
     },
     {
       "path": "guide-kit/.gitignore",
@@ -1145,7 +1145,7 @@
     },
     {
       "path": "guide-kit/generator/test_work_section.py",
-      "sha256": "efbccaae8a80e48d6f845a8316640805e1edf2568811a986ce6721195850bdf4"
+      "sha256": "7b2172f26e55760d8b8f95c9ae05078d0696ab5bcc9fc88d884e00043123ecaf"
     },
     {
       "path": "guide-kit/generator/test_zero_upload.py",
@@ -1153,7 +1153,7 @@
     },
     {
       "path": "guide-kit/generator/work_section.py",
-      "sha256": "2d5b8558ff2cb95d47353ffd1e57d089f11aefd5d3a5e2acff391173f7731d9a"
+      "sha256": "312777a60a6919fbc3eb47a434b954fee9c06a4b4596d008f075f1b931899bc2"
     },
     {
       "path": "guide-kit/guide-kit.config.yaml.example",
@@ -1289,7 +1289,7 @@
     },
     {
       "path": "memory/checklists.md",
-      "sha256": "8c9e5bfd7befab90fc892f4bf1e638655231ed29bcc4cae6e9fb7277d5e402d1"
+      "sha256": "e5a7ef792200c3f815ecae917d82b851e0624bf77673dddedc556655b00be4bd"
     },
     {
       "path": "memory/communication-style-base.md",
@@ -1349,7 +1349,7 @@
     },
     {
       "path": "memory/navigation.md",
-      "sha256": "46c4321d8a309d0dd4ea56ecac0802d8f14a7040801affb44a58de46245d70c7"
+      "sha256": "8c2d30588dc3e54596c39bc460ffb668609401de3e329f47a91ac3705c6f34d0"
     },
     {
       "path": "memory/protocol-close.md",
@@ -1365,7 +1365,7 @@
     },
     {
       "path": "memory/protocol-open.md",
-      "sha256": "fe6c7ab7e9c4382b831b3bf58985c6ce5c6d8ef667834efa3d2e80759fb7778a"
+      "sha256": "e2787e73fcb0f20b5433520f8a6e8bb363a56ad0400d0406659f3f7a73dc0ed6"
     },
     {
       "path": "memory/protocol-work.md",
@@ -1577,7 +1577,7 @@
     },
     {
       "path": "roles/strategist/prompts/day-plan.md",
-      "sha256": "e6472a47438198a96bde2495cbfd2f6c0e0e040b28f5379e06704445773f1148"
+      "sha256": "184c1f22abd85fd43973760d154d00eb6034a1f6f5a5f7bb866c20c580f95bb0"
     },
     {
       "path": "roles/strategist/prompts/evening.md",
@@ -1677,7 +1677,7 @@
     },
     {
       "path": "roles/strategist/prompts/week-review.md",
-      "sha256": "ea9534dc4bde0a09b0a63acabaf8f37bc728b2d854662238b52e106992425ba5"
+      "sha256": "b72f1645d231fb094bf485735d9bd0b7d1389cb2f8c03719af42554aa7997bda"
     },
     {
       "path": "roles/strategist/role.yaml",
@@ -1701,7 +1701,7 @@
     },
     {
       "path": "roles/strategist/scripts/strategist.sh",
-      "sha256": "6757b6f6c139250ed446adf84785742a009113a156ec6cfcae92d1384e72318d"
+      "sha256": "a518f398c6564e0cba8ce8d23515e59f2aa560b5f8a3fa070de753c77d966427"
     },
     {
       "path": "roles/strategist/scripts/systemd/iwe-strategist-morning.service",
@@ -1853,7 +1853,7 @@
     },
     {
       "path": "scripts/archive-done-wp.sh",
-      "sha256": "e9bc5bbfaf04d7e3a611060690679afb8641e301c5ffbae4c75950740aea4fa6"
+      "sha256": "c0c1cf486d10de23a0758466b5e2cfc7992a0880554b55b8856c4861bbd9650b"
     },
     {
       "path": "scripts/artifactor.py",
@@ -1865,7 +1865,7 @@
     },
     {
       "path": "scripts/build-active-wp.py",
-      "sha256": "548934ec48e1c9b257cd6dee9ff30018d5d83f309054140c0d474c6bbd51165c"
+      "sha256": "45d2535c38d6f511de385ffcb5b5bfcbd21fdf942ff8d070f43635a0d2bc4adc"
     },
     {
       "path": "scripts/changelog-append.sh",
@@ -1929,7 +1929,7 @@
     },
     {
       "path": "scripts/check-wp-format.py",
-      "sha256": "dc069113a57be36f81661a2e56ef2ac49142aa86c7a86b6e8acecb5501c70400"
+      "sha256": "cc1b510a1b693319cb2e607c164ac382cda206ff8338ea1e976c6b2b96277159"
     },
     {
       "path": "scripts/check-wp-transfer-completeness.sh",
@@ -1973,7 +1973,7 @@
     },
     {
       "path": "scripts/create-wp.sh",
-      "sha256": "4652a5dee092c6e8f29506125e999e823aef049c8fc890011f6a65b721626aca"
+      "sha256": "b69f2e2b970b745f907327f27450367f74e611571b0db0e2e83aa50b25b0cc5d"
     },
     {
       "path": "scripts/day-close-lock.sh",
@@ -2429,7 +2429,7 @@
     },
     {
       "path": "scripts/tests/test_create_wp_registry_coherence.sh",
-      "sha256": "852828b4b741b9922fd0a72b5089214a3ee1663874d7950976ed8115958adb69"
+      "sha256": "eda58ff1a46e5eed4754b28d2ae2d501cf2ff81bb7d1eee8306d2f7ebcb26e05"
     },
     {
       "path": "scripts/tests/test_create_wp_repeat_and_cwd.sh",
@@ -2577,7 +2577,7 @@
     },
     {
       "path": "scripts/verify-manifest.sh",
-      "sha256": "177485c72f35275624de93289e6e651e7ad079f7c86f3619be08c13e8bbec25e"
+      "sha256": "a3603666c9d264616243fd47bb71df67f0a7447dbf7a697180232c1e1a58d6c5"
     },
     {
       "path": "scripts/week-draft-append.sh",
@@ -2602,6 +2602,10 @@
     {
       "path": "sessions/00-index.md",
       "sha256": "462b1b9de70848d56e0f94b09893a09eaa93e4b81666565d6b6d969f42b3d94d"
+    },
+    {
+      "path": "setup-codex.ps1",
+      "sha256": "e9fda76a34ab7a444b43041a5fdfc06dfc5c562789f25288134b9929ad91498d"
     },
     {
       "path": "setup.sh",
@@ -2696,6 +2700,7 @@
     "scripts/tests/test_update_retry_and_classify_undeliverable_file.sh",
     "scripts/tests/test_update_verify_batch_integrity_hash_mismatch_failclosed.sh",
     "scripts/tests/test_validate_hypothesis_priority.sh",
+    "scripts/tests/test_wp_registry_number_format.py",
     "scripts/translate.py",
     "scripts/verify-template-integrity.sh",
     "sessions/2026-06/2026-06-17-01-kimi-setup/00-writer.md",
@@ -2707,6 +2712,7 @@
     "setup/detector-fixtures/README.md",
     "setup/detector-fixtures/detector_07/positive_backtick_slash.md",
     "setup/detector-regex.sh",
+    "setup/install-windows-tasks.ps1",
     "setup/integration-contract-validator.sh",
     "setup/optional/COVER-IMAGES.md",
     "setup/optional/README.md",
