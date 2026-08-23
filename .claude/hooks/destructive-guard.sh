@@ -43,9 +43,19 @@ if [ -n "$CWD" ]; then
 fi
 
 git_segment() {
-  # Return a normalised shell segment only when `git <global-opts> <subcmd>`
-  # is the command being executed. A regex over the raw command saw `git reset`
-  # inside a quoted argument of another program as an actual Git command.
+  # Print every normalised shell segment where `git <global-opts> <subcmd>` is
+  # the command being executed, one segment per line. A regex over the raw
+  # command saw `git reset` inside a quoted argument of another program as an
+  # actual Git command, hence the tokeniser instead of a pattern.
+  #
+  # WP-544 Ф1, 22.08: the scanner used to split only on [;&|(){}`], so a newline
+  # was an ordinary character. A multi-line script collapsed into ONE segment,
+  # its first word decided everything, and `set -e` / `P=...` / `then` in front
+  # of the real command made the guard silent (`git -C "$P" add -A` on line 3
+  # went through). Newlines and shell keywords are handled here; heredoc bodies
+  # are skipped because they are data for another program, not commands. This
+  # is a concrete DP.FM.077 case: a detector claimed the whole command class
+  # while inspecting only the first shell segment.
   local subcmd="$1"
   SUBCMD="$subcmd" CMD_SCAN="$CMD" perl -e '
     sub words {
@@ -82,8 +92,12 @@ git_segment() {
       return unless @tokens;
       my $i = 0;
       while ($i < @tokens) {
+        # Prefixes that keep the real command further right: env assignments,
+        # command wrappers and the shell keywords that open a compound list
+        # (`if git ...`, `; then git ...`, `; do git ...`).
         if ($tokens[$i] =~ /^[A-Za-z_][A-Za-z0-9_]*=/ ||
-            $tokens[$i] =~ /^(?:command|env|nohup|time|sudo)$/) {
+            $tokens[$i] =~ /^(?:command|env|nohup|time|sudo|exec|builtin)$/ ||
+            $tokens[$i] =~ /^(?:if|elif|while|until|then|else|do|!)$/) {
           $i++;
         } else {
           last;
@@ -101,30 +115,94 @@ git_segment() {
         }
       }
       return unless $i < @tokens && $tokens[$i] eq $ENV{"SUBCMD"};
-      print join(" ", @tokens[$start .. $#tokens]), "\n";
-      exit 0;
+      my $out = join(" ", @tokens[$start .. $#tokens]);
+      $out =~ tr/\n\r/  /;
+      print $out, "\n";
     }
 
+    my $sq = chr(39);
     my $text = $ENV{"CMD_SCAN"};
+    my $len = length($text);
     my ($segment, $quote) = (q{}, undef);
-    for (my $i = 0; $i < length($text); $i++) {
+    my @heredocs = ();
+    my $i = 0;
+    while ($i < $len) {
       my $char = substr($text, $i, 1);
       if (defined $quote) {
         $segment .= $char;
-        if ($char eq "\\" && $quote eq q{"} && $i + 1 < length($text)) {
+        if ($char eq "\\" && $quote eq q{"} && $i + 1 < $len) {
           $segment .= substr($text, ++$i, 1);
         } elsif ($char eq $quote) {
           undef $quote;
         }
-      } elsif ($char eq q{"} || $char eq chr(39)) {
+        $i++;
+        next;
+      }
+      if ($char eq q{"} || $char eq $sq) {
         $quote = $char;
         $segment .= $char;
-      } elsif ($char =~ /[;&|(){}]/ || $char eq q{`}) {
+        $i++;
+        next;
+      }
+      if ($char eq "\\" && $i + 1 < $len) {
+        # Line continuation glues two physical lines into one command.
+        if (substr($text, $i + 1, 1) eq "\n") { $i += 2; next; }
+        $segment .= substr($text, $i, 2);
+        $i += 2;
+        next;
+      }
+      # Heredoc: remember the delimiter, drop the body at the next newline.
+      # Without this a document that merely quotes a forbidden command
+      # (`cat > doc <<EOF ... EOF`) would be read as that command.
+      if ($char eq "<" && substr($text, $i, 2) eq "<<" && substr($text, $i, 3) ne "<<<") {
+        my $rest = substr($text, $i + 2);
+        my $marker_len = 0;
+        $marker_len++ if substr($rest, $marker_len, 1) eq "-";
+        $marker_len++ while substr($rest, $marker_len, 1) =~ /[ \t]/;
+        my ($delim, $end);
+        my $marker_quote = substr($rest, $marker_len, 1);
+        if ($marker_quote eq q{"} || $marker_quote eq $sq) {
+          $end = index($rest, $marker_quote, $marker_len + 1);
+          if ($end >= 0) {
+            $delim = substr($rest, $marker_len + 1, $end - $marker_len - 1);
+            $marker_len = $end + 1;
+          }
+        } elsif (substr($rest, $marker_len) =~ /^((?:\\.|[A-Za-z0-9_.\/-])+)/) {
+          $delim = $1;
+          $marker_len += length($1);
+        }
+        my $after = substr($rest, $marker_len, 1);
+        if (defined $delim && ($after eq q{} || $after =~ /[ \t\r\n;|&<>]/)) {
+          $delim =~ s/\\(.)/$1/g;
+          push @heredocs, $delim;
+          $i += 2 + $marker_len;
+          $segment .= " ";
+          next;
+        }
+      }
+      if ($char eq "\n" && @heredocs) {
         inspect_segment($segment);
         $segment = q{};
-      } else {
-        $segment .= $char;
+        $i++;
+        for my $delim (@heredocs) {
+          while ($i < $len) {
+            my $nl = index($text, "\n", $i);
+            my $line = $nl < 0 ? substr($text, $i) : substr($text, $i, $nl - $i);
+            $i = $nl < 0 ? $len : $nl + 1;
+            last if $line =~ /^[ \t]*\Q$delim\E[ \t]*\r?$/;
+          }
+        }
+        @heredocs = ();
+        next;
       }
+      if ($char =~ /[;&|(){}\n\r]/ || $char eq q{`}) {
+        inspect_segment($segment);
+        $segment = q{};
+        $i++;
+        next;
+      }
+      $segment .= $char;
+      $i++;
     }
     inspect_segment($segment);
   '
@@ -178,11 +256,15 @@ reset_is_non_destructive() {
   git -C "$repo" merge-base --is-ancestor HEAD "$target" 2>/dev/null
 }
 
-# git reset --hard
-RESET_SEGMENT=$(git_segment reset)
-if [ -n "$RESET_SEGMENT" ] && echo "$RESET_SEGMENT" | grep -qE -- '(^|[[:space:]])--hard([[:space:]]|$)' && ! reset_is_non_destructive "$RESET_SEGMENT"; then
+# git reset --hard. git_segment prints one line per matching segment, and
+# reset_is_non_destructive parses a single segment, so check them one by one.
+RESET_SEGMENTS=$(git_segment reset)
+while IFS= read -r RESET_SEGMENT; do
+  [ -n "$RESET_SEGMENT" ] || continue
+  echo "$RESET_SEGMENT" | grep -qE -- '(^|[[:space:]])--hard([[:space:]]|$)' || continue
+  if reset_is_non_destructive "$RESET_SEGMENT"; then continue; fi
   block "git reset --hard запрещён (теряет незакоммиченное). Используй git stash."
-fi
+done <<< "$RESET_SEGMENTS"
 
 # git clean with delete flags (-f/-d/-x)
 CLEAN_SEGMENT=$(git_segment clean)

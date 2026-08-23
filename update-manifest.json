@@ -61,7 +61,7 @@
     },
     {
       "path": ".claude/hooks/destructive-guard.sh",
-      "sha256": "aaab111b500049cd078a86752e790083ff7a464c098eea5ab23cf5f3b4cdd3c5"
+      "sha256": "e5194eddcaca8660c77c632e3b7bea5f9f59d9f30083c3ae23ed5647ff52a488"
     },
     {
       "path": ".claude/hooks/destructive-mcp-guard.sh",
@@ -2682,6 +2682,7 @@
     "scripts/tests/test_dry_run_gate.py",
     "scripts/tests/test_generate_manifest_registers_setup_exclusions.sh",
     "scripts/tests/test_install_hooks.py",
+    "scripts/tests/test_issue_destructive_guard_segments.py",
     "scripts/tests/test_issue_python_resolver_contract.sh",
     "scripts/tests/test_manifest_coverage_local.py",
     "scripts/tests/test_pending_phases_sweep.sh",
