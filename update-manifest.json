@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "version": "0.38.7",
+  "version": "0.38.9",
   "description": "Манифест платформенных файлов FMT-exocortex-template. Используется update.sh для доставки обновлений.",
   "files": [
     {
@@ -333,7 +333,7 @@
     },
     {
       "path": ".claude/skills/day-close/SKILL.md",
-      "sha256": "cee825b58e29923b49a50b7ea981c766a1d90cd9e3dad37df506f7139f23675c"
+      "sha256": "f066bc7aab7f1f349c6af07ac4ad9a75adb282665282fc73675f5c655803b846"
     },
     {
       "path": ".claude/skills/day-close/day-close-details.md",
@@ -441,7 +441,7 @@
     },
     {
       "path": ".claude/skills/personal-guide-render/SKILL.md",
-      "sha256": "387b668e75a70621937fe148e44c2d1362e4ebe2127cea703e8d4d4e7993307e"
+      "sha256": "a8b3cbf4b31dd603095e3b260cda86bf714f27628ae6fce4d8b40c1520765a26"
     },
     {
       "path": ".claude/skills/personal-guide-render/templates/reflection-template.md",
@@ -629,7 +629,7 @@
     },
     {
       "path": ".github/workflows/notify-update.yml",
-      "sha256": "672316f4226d43912c77b9ad2b2a66c90e987f6939688e83a7bfd40859cb797f"
+      "sha256": "d38bf9caa7b4eaccf0f86a6c96142d4b191c5919af95746eef57a341d288fa31"
     },
     {
       "path": ".github/workflows/post-release-audit.yml",
@@ -649,15 +649,15 @@
     },
     {
       "path": "AGENTS-agent-blocks.md",
-      "sha256": "609c4037e9d70ea4a30c75d83626e48041e3b4746c3a217ba868a83bc6897738"
+      "sha256": "df3508ebda339358943aaa6c25562d60a15f58a039951d7a8ffea5dcd4f2f6ae"
     },
     {
       "path": "AGENTS.md",
-      "sha256": "38082ef2208ba7a3f5fdc64881cb5b5f35f0c6d2c48da997d75b5bfd4717057e"
+      "sha256": "5fd53328b238d440e53b38657e196d43f4c31e40a333c20206347cd7880f2094"
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "deade913d82cd73f8e6663a4bd1d0f5071722c008f487443dba6014063ba0e9f"
+      "sha256": "4efaf5b5df4a749443de2834ca932de8d0c02c26c57b906415f1ae1551ddace9"
     },
     {
       "path": "CLAUDE.md",
@@ -729,7 +729,7 @@
     },
     {
       "path": "docs/PORTABILITY.md",
-      "sha256": "4c3e37def57d9536d3d35b88de11a58c9978fed6fd180f52ee9af29e6580210f"
+      "sha256": "f64fcc1765ce82a35b2fa193a4613e03f87302b76eef347e973215f85715bf93"
     },
     {
       "path": "docs/QUICK-START.md",
@@ -781,7 +781,7 @@
     },
     {
       "path": "docs/critical-files-map.yaml",
-      "sha256": "417999bef5bbb2d311ad740c7e2c8a1a187cf1992e68e114b58b5be75e2dcce3"
+      "sha256": "ba027fe0fcba516aa0c292f3b3d72b90d2463dee779ff97f9ba5060bd6a86526"
     },
     {
       "path": "docs/hindsight-setup.md",
@@ -985,7 +985,7 @@
     },
     {
       "path": "generate-manifest.sh",
-      "sha256": "77fadc3a80c2b14fe7313a1ea33e81f218897c58f64259a2a4964174d291bdf5"
+      "sha256": "92d7628c24d333150c2e05ffef29e76e1367f7c404c249c4b8132cbf77ff195b"
     },
     {
       "path": "guide-kit/.gitignore",
@@ -1321,7 +1321,7 @@
     },
     {
       "path": "memory/feedback_response_clarity_for_pilot.md",
-      "sha256": "7993b0ca4c51ea81d1ab65ecae83993e65bc454ee11ebc3ded45d30cbf1523c7"
+      "sha256": "6d4dc548120e7a7b46f4040c9bff72bad20e07e4f1213da11272e52afee118fb"
     },
     {
       "path": "memory/fpf-reference.md",
@@ -1345,7 +1345,7 @@
     },
     {
       "path": "memory/memory-lifecycle-spec.md",
-      "sha256": "f794f558a747135450061c71eca078e7868de9b3b446facf553b7b33c7a9d230"
+      "sha256": "68dfa01867f40cce0bf66e7276bbc7c1af96d4657c1659feb5004399d640f60b"
     },
     {
       "path": "memory/navigation.md",
@@ -1353,7 +1353,7 @@
     },
     {
       "path": "memory/protocol-close.md",
-      "sha256": "8f8164bcefa2cce3bfb14efe1905ab9b6ce6b46c5d230e68ca297a2b363ffbf5"
+      "sha256": "42a408e8c174b3b72b5056cdeb6304002ca4a8bd59d3b35504ee4db271ccd735"
     },
     {
       "path": "memory/protocol-dt-integration.md",
@@ -1593,7 +1593,7 @@
     },
     {
       "path": "roles/strategist/prompts/session-prep.md",
-      "sha256": "9fb6fa9dbe414bb90082d0c3bed3055e9261f4a5380b2e97f1ac708c718ca676"
+      "sha256": "5f92502a1261c092054cdfc5f50a62faaa833e36d540db235a4ba792c2fc0421"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-monthly.md",
@@ -1877,7 +1877,7 @@
     },
     {
       "path": "scripts/changelog-flush.sh",
-      "sha256": "be0c54ea7f13fbe6e42262ec466f6073125a7ca36e6102e520623f09199eef5b"
+      "sha256": "0b20d2a3e268c49ed6ad5098c5d847486de46997993f9523ffbc665da434bcb7"
     },
     {
       "path": "scripts/check-claude-md-links.py",
@@ -2241,7 +2241,7 @@
     },
     {
       "path": "scripts/memory-bleed.sh",
-      "sha256": "e5dd1319cd42ef79a3f299e3747a0628a1af07ba3a6231a903439aab6896b47e"
+      "sha256": "6e17b5d41562ce24326cd4b1556d30c0ef2ae60f5a83e31012f05982ca6a16e8"
     },
     {
       "path": "scripts/memory-health.sh",
@@ -2253,7 +2253,7 @@
     },
     {
       "path": "scripts/memory-validate.sh",
-      "sha256": "50b8be9d9980e6db7a01f83da6503a433c79a0e2dfbf775fa2e4fd3f7ef061bf"
+      "sha256": "b64ca8dc78fa4a4f02a669728cca3b8b2a0c3356d96f52312afcb54c7eb7dd49"
     },
     {
       "path": "scripts/migrate-initial-marker.sh",
@@ -2392,6 +2392,10 @@
       "sha256": "f2ae015d394a447778e1ed75ecfa16d80fe98e1164655b3431940c7e783d206c"
     },
     {
+      "path": "scripts/tests/fixtures/python-resolver-baseline.txt",
+      "sha256": "6f1c7bd4afdcc899d875cc162e66b418bcacdbe356836ce56676e0b541afc94f"
+    },
+    {
       "path": "scripts/tests/lib/capture_fixture.sh",
       "sha256": "edf6eba925d890e2aa52541be8fff27fb48ab11f5c7c69a8a3b1b001408978cd"
     },
@@ -2525,7 +2529,7 @@
     },
     {
       "path": "scripts/tests/test_update_build_runtime_fail_closed.sh",
-      "sha256": "cf3d6a0132c4265691f22adfb49f405e378161ee3029c41d5ce59d2d7139fc73"
+      "sha256": "69cb3b529071b3612e9a9224c4a2ac5698e35aa2e1ce78a26241c7da9c9ac926"
     },
     {
       "path": "scripts/tests/test_update_delivers_python_resolver_before_roles.sh",
@@ -2561,7 +2565,7 @@
     },
     {
       "path": "scripts/validate-fmt-scripts.sh",
-      "sha256": "92f14a84bbca323c9cc7ca5cdec55ecfd48dd54be7db855e969662682bd3075a"
+      "sha256": "0e41119a385f0010624cfb8bcff5c4bcfc8739907c6dbc214b45e0fba475d933"
     },
     {
       "path": "scripts/validate-hypothesis-priority.sh",
@@ -2577,7 +2581,7 @@
     },
     {
       "path": "scripts/verify-manifest.sh",
-      "sha256": "a3603666c9d264616243fd47bb71df67f0a7447dbf7a697180232c1e1a58d6c5"
+      "sha256": "169c40d09d910dd454599d10cf6bad5b5a119039b6a2b80ac9b08dcae62bb2c0"
     },
     {
       "path": "scripts/week-draft-append.sh",
@@ -2605,11 +2609,11 @@
     },
     {
       "path": "setup-codex.ps1",
-      "sha256": "2a38fee707a97262e6174328f2df587d7f15afa41e4d2cc094fb2e8bb5ba3335"
+      "sha256": "3922519a72619a6a0d125271fe6ccbb88e2973dcc40ff69cb3449f99079c50d9"
     },
     {
       "path": "setup.sh",
-      "sha256": "e73a22e88b5f4150a43938d48e6b5024fddfb7fa7e9c640e9d9dee02c42c1a70"
+      "sha256": "0b1a77f34d84bba032b11875e3de043dd49b37b2b1bfb231bb13081f31d60090"
     },
     {
       "path": "setup/build-runtime.sh",
@@ -2649,7 +2653,7 @@
     },
     {
       "path": "update.sh",
-      "sha256": "2ffe40bd30d55c5816a4e65cf6b288ca04fcb087f30bcde794865bf5e94bdab7"
+      "sha256": "747de7a2b7368842edf6b314eae0c0fb9c7a94f074869f30deb636f20290e252"
     }
   ],
   "excluded_paths": [
@@ -2674,7 +2678,6 @@
     "scripts/iwe-trace.py",
     "scripts/session-dispatcher-tsekh.py",
     "scripts/tests/conftest.py",
-    "scripts/tests/fixtures/python-resolver-baseline.txt",
     "scripts/tests/lib/extract-update-download-batch.sh",
     "scripts/tests/test_agent_dashboard.py",
     "scripts/tests/test_copy_to_aisystant.py",
@@ -2692,6 +2695,7 @@
     "scripts/tests/test_pending_phases_sweep.sh",
     "scripts/tests/test_release_receipt.sh",
     "scripts/tests/test_residency_gate_skill_adapter.py",
+    "scripts/tests/test_setup_runtime_isolation.sh",
     "scripts/tests/test_skill_promote.py",
     "scripts/tests/test_translate_delta.py",
     "scripts/tests/test_translate_parse.py",
@@ -2703,12 +2707,6 @@
     "scripts/tests/test_wp_registry_number_format.py",
     "scripts/translate.py",
     "scripts/verify-template-integrity.sh",
-    "sessions/2026-06/2026-06-17-01-kimi-setup/00-writer.md",
-    "sessions/2026-06/2026-06-17-01-kimi-setup/01-peer.md",
-    "sessions/2026-06/2026-06-17-01-kimi-setup/02-writer.md",
-    "sessions/2026-06/2026-06-17-01-kimi-setup/03-peer.md",
-    "sessions/2026-06/2026-06-17-01-kimi-setup/meta.yaml",
-    "sessions/2026-06/2026-06-17-01-kimi-setup/report.md",
     "setup/detector-fixtures/README.md",
     "setup/detector-fixtures/detector_07/positive_backtick_slash.md",
     "setup/detector-regex.sh",
@@ -2735,6 +2733,8 @@
     "setup/test-update-edge-cases.sh",
     "setup/test-update-issue-226.sh",
     "setup/test-update-release-channel.sh",
+    "setup/test-update-self-overwrite.sh",
+    "setup/test-update-step0-staged-rename.sh",
     "setup/ux-walkthrough-prompt.md"
   ],
   "deprecated_files": [
@@ -2837,22 +2837,6 @@
     {
       "path": "sessions/2026-06/2026-06-17-01-kimi-setup/report.md",
       "reason": "session transcripts archived, removed by WP-401 Ф6.1 2026-07-22"
-    },
-    {
-      "path": "docs/developer/README.md",
-      "reason": "documentation pipeline deprecated, consolidated in memory/, removed by WP-401 Ф6.1 2026-07-23"
-    },
-    {
-      "path": "docs/developer/card-template.md",
-      "reason": "documentation pipeline deprecated, consolidated in memory/, removed by WP-401 Ф6.1 2026-07-23"
-    },
-    {
-      "path": "docs/developer/developer-guide.md",
-      "reason": "documentation pipeline deprecated, consolidated in memory/, removed by WP-401 Ф6.1 2026-07-23"
-    },
-    {
-      "path": "docs/developer/testing-as-spec.md",
-      "reason": "documentation pipeline deprecated, consolidated in memory/, removed by WP-401 Ф6.1 2026-07-23"
     }
   ]
 }
