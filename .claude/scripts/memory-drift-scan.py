@@ -75,6 +75,7 @@ _EMOJI_TO_STATUS = {
 
 
 _TEXT_STATUS_PATTERNS = (
+    ("wrapping_up", re.compile(r"\bwrapping[ _-]?up\b", re.IGNORECASE)),
     ("in_progress", re.compile(r"\bin[ _-]?progress\b", re.IGNORECASE)),
     ("in_progress", re.compile(r"\bactive\b", re.IGNORECASE)),
     ("in_progress", re.compile(r"\b(?:в[ _-]?работе|активен)\b", re.IGNORECASE)),

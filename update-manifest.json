@@ -253,7 +253,7 @@
     },
     {
       "path": ".claude/scripts/memory-drift-scan.py",
-      "sha256": "9d4c46b023299dfcd95d5fa4bff640a51f55364987665af84a005045697a44e2"
+      "sha256": "5da042dc0f0ca8833087d2b8cda6119a76c0bc86f403657346c30bd25067be0b"
     },
     {
       "path": ".claude/scripts/settings-merge-apply.sh",
