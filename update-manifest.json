@@ -237,7 +237,7 @@
     },
     {
       "path": ".claude/scripts/check-index-health.py",
-      "sha256": "229d92059b32a772424853ee3c5ac56e2141acfa209b2d42db8879454deb033a"
+      "sha256": "5d660cd2271d908e1f64aa7cb7cf30ad8f89a1e99c9f71377bbeb2b25426550e"
     },
     {
       "path": ".claude/scripts/classify-workspace-copy.sh",
@@ -253,7 +253,7 @@
     },
     {
       "path": ".claude/scripts/memory-drift-scan.py",
-      "sha256": "8c0b5d81add179ca03aa3e590a33a9b92c36b97b49d9030f0c2eba808a29fea0"
+      "sha256": "9d4c46b023299dfcd95d5fa4bff640a51f55364987665af84a005045697a44e2"
     },
     {
       "path": ".claude/scripts/settings-merge-apply.sh",
@@ -729,7 +729,7 @@
     },
     {
       "path": "docs/PORTABILITY.md",
-      "sha256": "48d7302a1d4124d336574f90f737b48d68d5339bea12032ffb3bdf9a8b10b316"
+      "sha256": "4c3e37def57d9536d3d35b88de11a58c9978fed6fd180f52ee9af29e6580210f"
     },
     {
       "path": "docs/QUICK-START.md",

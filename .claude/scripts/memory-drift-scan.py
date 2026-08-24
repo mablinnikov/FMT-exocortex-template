@@ -20,9 +20,9 @@ pending/in_progress/done) или сокращённое «ст» (пользов
 Usage:
     memory-drift-scan.py [--memory PATH] [--governance-repo PATH]
 
---memory: путь к MEMORY.md (default: ~/IWE/memory/MEMORY.md)
+--memory: путь к MEMORY.md (default: <workspace>/memory/MEMORY.md)
 --governance-repo: корень governance-репо, где искать inbox/WP-N/
-    (default: ~/IWE/DS-strategy, переопределяется $IWE_GOVERNANCE_REPO)
+    (default: <workspace>/DS-strategy, переопределяется $IWE_GOVERNANCE_REPO)
 
 Exit code:
     0 — дрейфов не найдено
@@ -94,6 +94,23 @@ _TEXT_STATUS_PATTERNS = (
 _FALLBACK_TEXT_STATUS_PATTERNS = (
     ("pending", re.compile(r"\bждёт\b", re.IGNORECASE)),
 )
+
+
+def default_workspace_root() -> Path:
+    """Resolve the installed workspace without assuming ``~/IWE``.
+
+    Runtime scripts receive WORKSPACE_DIR from iwe-env-bootstrap. Direct calls
+    should also work in Windows/Codex installations: their deployed script
+    lives at <workspace>/.claude/scripts and the workspace has .exocortex.env.
+    The historical ~/IWE location remains only as a compatibility fallback.
+    """
+    configured = os.environ.get("WORKSPACE_DIR")
+    if configured:
+        return Path(configured).expanduser()
+    deployed_workspace = Path(__file__).resolve().parents[2]
+    if (deployed_workspace / ".exocortex.env").is_file():
+        return deployed_workspace
+    return Path.home() / "IWE"
 
 
 def normalize_status(raw: str) -> str:
@@ -225,12 +242,12 @@ def main() -> int:
     parser.add_argument(
         "--memory",
         type=Path,
-        default=Path.home() / "IWE" / "memory" / "MEMORY.md",
+        default=default_workspace_root() / "memory" / "MEMORY.md",
     )
     parser.add_argument(
         "--governance-repo",
         type=Path,
-        default=Path.home() / "IWE" / os.environ.get("IWE_GOVERNANCE_REPO", "DS-strategy"),
+        default=default_workspace_root() / os.environ.get("IWE_GOVERNANCE_REPO", "DS-strategy"),
     )
     args = parser.parse_args()
 

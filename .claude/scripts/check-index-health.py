@@ -8,7 +8,7 @@ changelog / статус / контекст сущности — в source-of-tr
 Usage:
     check-index-health.py [ROOT]
 
-ROOT: корень скана (default: ~/IWE).
+ROOT: корень скана (default: <workspace>).
 
 Exit code:
     0 — все OK
@@ -32,6 +32,7 @@ CATALOG.md, TOC.md, MAPSTRATEGIC.md, Projects.md, *-registry.md, *-index.md,
 """
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -66,6 +67,17 @@ CELL_WARN = 200
 CELL_FAIL = 400
 # Размер сам по себе — слабый маркер: реестр из 300 РП × 100 chars = 30KB, норма.
 # Настоящие маркеры — длинные строки/ячейки.
+
+
+def default_workspace_root() -> Path:
+    """Resolve the installed workspace without assuming ``~/IWE``."""
+    configured = os.environ.get("WORKSPACE_DIR")
+    if configured:
+        return Path(configured).expanduser()
+    deployed_workspace = Path(__file__).resolve().parents[2]
+    if (deployed_workspace / ".exocortex.env").is_file():
+        return deployed_workspace
+    return Path.home() / "IWE"
 
 
 def check_file(path: Path) -> dict:
@@ -163,7 +175,7 @@ def fmt_file_line(path: Path, root: Path, findings: dict) -> str:
 
 
 def main() -> int:
-    root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.home() / "IWE"
+    root = Path(sys.argv[1]) if len(sys.argv) > 1 else default_workspace_root()
     if not root.is_dir():
         print(f"FAIL: root dir not found: {root}", file=sys.stderr)
         return 2
