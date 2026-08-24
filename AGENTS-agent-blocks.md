@@ -49,6 +49,10 @@ git commit -m "feat: description" --trailer "Co-Authored-By: Codex <noreply@open
 
 Codex читает `AGENTS.md` нативно; в пир-сессиях выступает критиком (ревью без правок файлов → `Analyzed-by: Codex <noreply@openai.com>`, по тому же правилу «редактор vs аналитик», что и у Claude).
 
+## Git Push в Codex на Windows — CRITICAL
+
+В Windows-развёртывании IWE агент Codex выполняет `git push` только с повышенным доступом (`sandbox_permissions="require_escalated"`), чтобы Git работал в пользовательском контексте Windows и получал GitHub-токен из защищённого хранилища через `gh auth git-credential`. Перед отправкой проверить `gh auth status`: активный аккаунт должен быть `{{GITHUB_USER}}`; проверка не прошла → `push` запрещён, сообщить пилоту. Не читать и не выводить токен, не помещать его в URL, команду, файлы репозитория или `.codex/config.toml`.
+
 ### Для коммитов с участием Hermes (Nous Research)
 
 ```bash
@@ -111,5 +115,9 @@ Before starting any edit task:
 
 - Паттерн PREFIX/BODY/TAIL для headless-агентов → см. `memory/sota-prompt-cache.md`.
 - Применять при сборке системного промпта multi-turn агента: стабильное (идентичность, правила) — в PREFIX/BODY до cache-breakpoint; волатильное (память, timestamp) — в TAIL.
+
+<!-- USER-SPACE -->
+<!-- Личные правила конкретной установки. update.sh сохраняет этот блок. -->
+<!-- /USER-SPACE -->
 
 <!-- AGENT-SPECIFIC-END -->

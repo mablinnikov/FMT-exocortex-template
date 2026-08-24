@@ -1563,6 +1563,7 @@ eval "$(awk '/^hash_file\(\)/{copy=1} copy{print} copy && /^}/{exit}' "$TEMPLATE
 eval "$(awk '/^rule_was_safe_to_update\(\)/{copy=1} copy{print} copy && /^}/{exit}' "$TEMPLATE_DIR/update.sh")"
 eval "$(awk '/^backup_rule_before_overwrite\(\)/{copy=1} copy{print} copy && /^}/{exit}' "$TEMPLATE_DIR/update.sh")"
 eval "$(awk '/^copy_platform_file_preserving_user_space\(\)/{copy=1} copy{print} copy && /^}/{exit}' "$TEMPLATE_DIR/update.sh")"
+eval "$(awk '/^replace_template_file_preserving_user_space\(\)/{copy=1} copy{print} copy && /^}/{exit}' "$TEMPLATE_DIR/update.sh")"
 cat > "$T24_ROOT/rule-upstream.md" <<'EOF'
 # Platform rule v2
 EOF
@@ -1580,6 +1581,28 @@ if grep -q 'Platform rule v2' "$T24_ROOT/.claude/rules/example.md" && \
     pass "T24: rule update preserves USER-SPACE and creates a recoverable pre-image"
 else
     fail "T24: rule preservation or transactional backup failed"
+fi
+
+cat > "$T24_ROOT/agent-blocks-upstream.md" <<'EOF'
+# Agent blocks v2
+<!-- USER-SPACE -->
+<!-- /USER-SPACE -->
+EOF
+cat > "$T24_ROOT/agent-blocks-current.md" <<'EOF'
+# Agent blocks v1
+<!-- USER-SPACE -->
+pilot Codex rule
+<!-- /USER-SPACE -->
+EOF
+replace_template_file_preserving_user_space \
+    "$T24_ROOT/agent-blocks-upstream.md" \
+    "$T24_ROOT/agent-blocks-current.md" \
+    "AGENTS-agent-blocks.md"
+if grep -q '# Agent blocks v2' "$T24_ROOT/agent-blocks-current.md" && \
+   grep -q 'pilot Codex rule' "$T24_ROOT/agent-blocks-current.md"; then
+    pass "T24: AGENTS-agent-blocks update preserves USER-SPACE"
+else
+    fail "T24: AGENTS-agent-blocks USER-SPACE was lost during update"
 fi
 
 RULES_SAFE_TO_UPDATE="|"

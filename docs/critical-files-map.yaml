@@ -186,6 +186,14 @@ special_routes:
       возвращается после — как CLAUDE.md, но своя (более лёгкая) механика.
     proof_of_delivery: manifest_sha
 
+  - path: "AGENTS-agent-blocks.md"
+    category: delivered-default
+    note: >
+      Канонический источник агентно-специфичных инструкций. USER-SPACE блок
+      сохраняется перед перезаписью; при изменении источников update.sh
+      пересобирает AGENTS.md и обновляет Codex-адаптер в workspace.
+    proof_of_delivery: "manifest_sha + ci:test-update-edge-cases.sh (T24)"
+
   - path: "params.yaml"
     category: user-space-excluded
     note: >

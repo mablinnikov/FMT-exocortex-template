@@ -643,6 +643,55 @@ copy_platform_file_preserving_user_space() {
     fi
 }
 
+# replace_template_file_preserving_user_space SRC DST LABEL — обновляет L1-файл
+# и возвращает только явно размеченную пользовательскую секцию. В отличие от
+# 3-way merge это намеренно простая механика: platform-space всегда берётся из
+# релиза, а пользователь владеет только блоком между маркерами.
+replace_template_file_preserving_user_space() {
+    local src="$1" dst="$2" label="$3" user_section=""
+    if [ -f "$dst" ]; then
+        user_section=$(sed -n '/^<!-- USER-SPACE -->/,/^<!-- \/USER-SPACE -->/p' "$dst" 2>/dev/null || true)
+    fi
+    cp "$src" "$dst"
+    if [ -n "$user_section" ]; then
+        perl -i -0pe 's/^<!-- USER-SPACE -->.*?^<!-- \/USER-SPACE -->//ms' "$dst"
+        perl -i -0pe 's/\n+$/\n/' "$dst"
+        printf '\n%s\n' "$user_section" >> "$dst"
+        echo "  ~ $label (USER-SPACE сохранён)"
+    else
+        echo "  ~ $label"
+    fi
+}
+
+# Codex reads the generated workspace AGENTS.md, not the raw template copy.
+# Refresh it only when its canonical inputs changed and this is a Codex install;
+# a failed refresh keeps the update transaction open for a recoverable retry.
+refresh_codex_workspace_instructions() {
+    [ "${AGENT_INSTRUCTIONS_CHANGED:-false}" = true ] || return 0
+    [ -d "$WORKSPACE_DIR/.codex" ] || return 0
+
+    local codex_setup="$SCRIPT_DIR/setup-codex.ps1" ps_runner=""
+    if [ ! -f "$codex_setup" ]; then
+        echo "ОШИБКА: обновились источники Codex-инструкций, но setup-codex.ps1 отсутствует." >&2
+        return 1
+    fi
+    if command -v pwsh >/dev/null 2>&1; then
+        ps_runner="pwsh"
+    elif command -v powershell.exe >/dev/null 2>&1; then
+        ps_runner="powershell.exe"
+    else
+        echo "ОШИБКА: обновились источники Codex-инструкций, но PowerShell недоступен." >&2
+        return 1
+    fi
+    if "$ps_runner" -NoProfile -ExecutionPolicy Bypass -File "$codex_setup" \
+        -Workspace "$WORKSPACE_DIR" -RefreshInstructions; then
+        echo "  ✓ Codex-инструкции в workspace обновлены"
+    else
+        echo "ОШИБКА: не удалось обновить Codex-инструкции в workspace." >&2
+        return 1
+    fi
+}
+
 resolve_workspace_memory_dir() {
     local workspace="$1" physical="" computed slug
     slug=$(printf '%s' "$workspace" | tr '/_.' '-')
@@ -791,6 +840,8 @@ if curl $CURL_BASE_OPTS $_CURL_SSL_OPT -sSfL "$RAW_BASE/update.sh" -o "$REMOTE_U
         if $CHECK_ONLY; then
             # In --check mode: report available update without touching the file
             echo "  ⚠ Новая версия update.sh доступна. Запустите без --check для обновления."
+        elif author_diverged "update.sh"; then
+            echo "  ⚠ author_mode: локальный update.sh отличается от origin/main, самообновление пропущено."
         else
             echo "  Найдена новая версия update.sh — обновляю..."
             cp "$REMOTE_UPDATE" "$SCRIPT_DIR/update.sh"
@@ -1847,6 +1898,8 @@ for f in "${UPDATED_FILES[@]}"; do
                 echo "    Сверьте свои правки §8/§9 вручную с шаблонной версией: diff \"$CURRENT_FILE\" \"$NEW_FILE\""
             fi
         fi
+    elif [ "$f" = "AGENTS-agent-blocks.md" ]; then
+        replace_template_file_preserving_user_space "$TMPDIR_UPDATE/files/$f" "$SCRIPT_DIR/$f" "$f"
     elif [[ "$f" == .claude/skills/*/SKILL.md ]]; then
         # USER-SPACE preserve for L1 skill spec files (no install_constants in SCRIPT_DIR — already {{KEY}})
         CURR_SKILL_FILE="$SCRIPT_DIR/$f"
@@ -1872,6 +1925,27 @@ for f in "${UPDATED_FILES[@]}"; do
     fi
     APPLIED=$((APPLIED + 1))
 done
+
+# AGENTS.md — производный файл. После доставки его входов пересобираем
+# шаблонную копию до обновления Codex-адаптера в workspace.
+AGENT_INSTRUCTIONS_CHANGED=false
+for f in "${NEW_FILES[@]}" "${UPDATED_FILES[@]}"; do
+    case "$f" in
+        CLAUDE.md|AGENTS-agent-blocks.md|scripts/sync-agent-instructions.sh)
+            AGENT_INSTRUCTIONS_CHANGED=true
+            break
+            ;;
+    esac
+done
+if $AGENT_INSTRUCTIONS_CHANGED; then
+    if WORKSPACE_DIR="$SCRIPT_DIR" IWE_ROOT="$SCRIPT_DIR" bash "$SCRIPT_DIR/scripts/sync-agent-instructions.sh" --force; then
+        APPLIED_PATHS+=("AGENTS.md")
+        echo "  ✓ AGENTS.md: пересобран из канонических источников"
+    else
+        echo "ОШИБКА: не удалось пересобрать AGENTS.md после обновления его источников." >&2
+        exit "$EXIT_RUNTIME"
+    fi
+fi
 
 # issue #229: hard-require frontmatter.sh now — NEW_FILES/UPDATED_FILES above have
 # just delivered it to disk if this is the first run after upgrading from a
@@ -2452,6 +2526,8 @@ fi
 run_build_runtime_or_die
 
 # Reinstall roles if changed (ПОСЛЕ build-runtime — install читает из свежего .iwe-runtime/)
+refresh_codex_workspace_instructions || exit "$EXIT_RUNTIME"
+
 ROLES_CHANGED=false
 for f in "${NEW_FILES[@]}" "${UPDATED_FILES[@]}"; do
     case "$f" in roles/*)

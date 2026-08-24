@@ -2,7 +2,8 @@
 param(
     [string]$Workspace = (Split-Path -Parent $PSScriptRoot),
     [string]$GitHubUser = "",
-    [switch]$Validate
+    [switch]$Validate,
+    [switch]$RefreshInstructions
 )
 
 Set-StrictMode -Version Latest
@@ -110,6 +111,21 @@ function Write-CodexSkill {
     Write-Utf8File -Path $skillPath -Content $Content
 }
 
+function Refresh-AgentInstructions {
+    $adapterHeader = @'
+> **Codex adapter for Windows/Yandex Disk.** This file is generated from the upstream IWE `AGENTS.md`.
+> Codex-specific rules: use `.agents/skills/`; treat `.claude/hooks/`, Claude slash commands and `~/.claude` paths as inactive unless explicitly adapted. Keep workspace files physical (no symlinks). Do not work on this synced folder from two computers at the same time.
+
+'@
+    $agentsSource = Get-Content -LiteralPath (Join-Path $TemplateDir 'AGENTS.md') -Raw -Encoding UTF8
+    $agentsSource = Convert-ToCodexAgentInstructions $agentsSource
+    $agentsContent = Expand-IwePlaceholders ($adapterHeader + $agentsSource)
+    Write-Utf8File -Path (Join-Path $Workspace 'AGENTS.md') -Content $agentsContent
+
+    $blocksSource = Get-Content -LiteralPath (Join-Path $TemplateDir 'AGENTS-agent-blocks.md') -Raw -Encoding UTF8
+    Write-Utf8File -Path (Join-Path $Workspace 'AGENTS-agent-blocks.md') -Content (Expand-IwePlaceholders $blocksSource)
+}
+
 function Test-Installation {
     $required = @(
         'AGENTS.md',
@@ -179,6 +195,12 @@ foreach ($relative in $requiredTemplateItems) {
     }
 }
 
+if ($RefreshInstructions) {
+    Refresh-AgentInstructions
+    Write-Host 'Codex instructions refreshed.' -ForegroundColor Green
+    exit 0
+}
+
 Write-Host "Installing IWE for Codex"
 Write-Host "  Template:  $TemplateDir"
 Write-Host "  Workspace: $Workspace"
@@ -187,18 +209,7 @@ Ensure-Directory $Workspace
 Ensure-Directory (Join-Path $Workspace 'extensions')
 Ensure-Directory (Join-Path $Workspace '.agents\skills')
 
-$adapterHeader = @'
-> **Codex adapter for Windows/Yandex Disk.** This file is generated from the upstream IWE `AGENTS.md`.
-> Codex-specific rules: use `.agents/skills/`; treat `.claude/hooks/`, Claude slash commands and `~/.claude` paths as inactive unless explicitly adapted. Keep workspace files physical (no symlinks). Do not work on this synced folder from two computers at the same time.
-
-'@
-$agentsSource = Get-Content -LiteralPath (Join-Path $TemplateDir 'AGENTS.md') -Raw -Encoding UTF8
-$agentsSource = Convert-ToCodexAgentInstructions $agentsSource
-$agentsContent = Expand-IwePlaceholders ($adapterHeader + $agentsSource)
-Write-Utf8File -Path (Join-Path $Workspace 'AGENTS.md') -Content $agentsContent
-
-$blocksSource = Get-Content -LiteralPath (Join-Path $TemplateDir 'AGENTS-agent-blocks.md') -Raw -Encoding UTF8
-Write-Utf8File -Path (Join-Path $Workspace 'AGENTS-agent-blocks.md') -Content (Expand-IwePlaceholders $blocksSource)
+Refresh-AgentInstructions
 
 Copy-MissingTree -Source (Join-Path $TemplateDir 'memory') -Destination (Join-Path $Workspace 'memory')
 $memoryIndex = Join-Path $Workspace 'memory\MEMORY.md'
