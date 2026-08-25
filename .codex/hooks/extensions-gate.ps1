@@ -3,6 +3,7 @@ param()
 
 # Codex PreToolUse gate for platform-owned files edited through apply_patch.
 $ErrorActionPreference = 'Stop'
+$inputTimeoutMilliseconds = 4000
 
 function Deny-ToolCall {
     param([string]$Reason)
@@ -16,18 +17,41 @@ function Deny-ToolCall {
     exit 0
 }
 
-$readTask = [Console]::In.ReadLineAsync()
-if (-not $readTask.Wait(5000)) {
-    Deny-ToolCall 'входной JSON не поступил за 5 секунд; правка заблокирована.'
+function Read-HookEvent {
+    try {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Threading;
+public sealed class IweHookReadResult { public bool TimedOut; public string Line; public string Error; }
+public static class IweHookInputReader {
+    public static IweHookReadResult ReadLine(int timeoutMilliseconds) {
+        string line = null; Exception failure = null;
+        var reader = new Thread(() => { try { line = Console.In.ReadLine(); } catch (Exception ex) { failure = ex; } });
+        reader.IsBackground = true; reader.Start();
+        if (!reader.Join(timeoutMilliseconds)) return new IweHookReadResult { TimedOut = true };
+        return new IweHookReadResult { Line = line, Error = failure == null ? null : failure.Message };
+    }
 }
-$raw = [string]$readTask.Result
-try {
-    $event = $raw | ConvertFrom-Json
-} catch {
-    Deny-ToolCall 'не удалось разобрать входной JSON; правка заблокирована.'
+'@
+    } catch {
+        Deny-ToolCall 'не удалось запустить ограниченное чтение stdin; правка заблокирована.'
+    }
+    $result = [IweHookInputReader]::ReadLine($inputTimeoutMilliseconds)
+    if ($result.TimedOut) { Deny-ToolCall 'входной JSON не поступил за 4 секунды; правка заблокирована.' }
+    if ($result.Error -or [string]::IsNullOrWhiteSpace($result.Line)) {
+        Deny-ToolCall 'получен пустой или недоступный stdin; правка заблокирована.'
+    }
+    try { $parsed = $result.Line | ConvertFrom-Json -ErrorAction Stop }
+    catch { Deny-ToolCall 'не удалось разобрать входной JSON; правка заблокирована.' }
+    if ($null -eq $parsed) { Deny-ToolCall 'получен пустой JSON; правка заблокирована.' }
+    return $parsed
 }
 
-if ($event.tool_name -ne 'apply_patch') { exit 0 }
+$event = Read-HookEvent
+
+if ($event.tool_name -ne 'apply_patch') {
+    Deny-ToolCall 'получено событие не для apply_patch; правка заблокирована.'
+}
 $patch = [string]$event.tool_input.command
 if ([string]::IsNullOrWhiteSpace($patch)) {
     Deny-ToolCall 'apply_patch не содержит command; путь правки неизвестен.'

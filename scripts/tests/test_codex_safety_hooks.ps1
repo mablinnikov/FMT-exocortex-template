@@ -32,11 +32,13 @@ function Invoke-Hook {
     }
 }
 
-function Invoke-HookWithoutClosingInput {
+function Invoke-HookProcess {
     param(
         [string]$Name,
-        [hashtable]$Event,
-        [hashtable]$Environment = @{}
+        [hashtable]$Event = $null,
+        [hashtable]$Environment = @{},
+        [ValidateSet('JsonOpen', 'Eof', 'OpenEmpty')]
+        [string]$InputMode = 'JsonOpen'
     )
 
     $processInfo = [System.Diagnostics.ProcessStartInfo]::new()
@@ -55,13 +57,19 @@ function Invoke-HookWithoutClosingInput {
     $process.StartInfo = $processInfo
     try {
         [void]$process.Start()
-        $json = $Event | ConvertTo-Json -Depth 8 -Compress
-        $process.StandardInput.WriteLine($json)
-        $process.StandardInput.Flush()
-        if (-not $process.WaitForExit(3000)) {
+        if ($InputMode -eq 'JsonOpen') {
+            $json = $Event | ConvertTo-Json -Depth 8 -Compress
+            $process.StandardInput.WriteLine($json)
+            $process.StandardInput.Flush()
+        } elseif ($InputMode -eq 'Eof') {
+            $process.StandardInput.Close()
+        }
+
+        $waitMilliseconds = if ($InputMode -eq 'OpenEmpty') { 6500 } else { 3000 }
+        if (-not $process.WaitForExit($waitMilliseconds)) {
             $process.Kill()
             $process.WaitForExit()
-            throw "$Name waited for stdin EOF instead of processing one JSON object"
+            throw "$Name exceeded the bounded stdin wait in mode $InputMode"
         }
 
         $output = $process.StandardOutput.ReadToEnd().Trim()
@@ -114,8 +122,19 @@ try {
         'git add -u',
         'git push --force origin main',
         'git reset --hard HEAD~1',
+        'git clean -fd',
         'rm -rf /workspace/project',
-        'Remove-Item C:\workspace\project -Recurse -Force'
+        'Remove-Item C:\workspace\project -Recurse -Force',
+        'ri C:\workspace\project -Recurse -Force',
+        'del C:\workspace\project -Recurse -Force',
+        'psql -c "DROP TABLE accounts"',
+        'psql -c "DELETE FROM accounts"',
+        'powershell -NoProfile -Command "git reset --hard HEAD~1"',
+        'powershell -Command "ri C:\workspace\project -Recurse -Force"',
+        'cmd /c "git clean -fd"',
+        'cmd /d /c "git reset --hard HEAD~1"',
+        'cmd /c "rmdir C:\workspace\project /s /q"',
+        'powershell -EncodedCommand ZABlAGwAZQB0AGUA'
     )
     foreach ($command in $blockedCommands) {
         $output = Invoke-Hook 'destructive-guard.ps1' (New-ToolEvent 'Bash' @{ command = $command })
@@ -123,9 +142,13 @@ try {
     }
     Assert-Allowed (Invoke-Hook 'destructive-guard.ps1' (New-ToolEvent 'Bash' @{ command = 'git status --short' })) 'git status'
     Assert-Allowed (Invoke-Hook 'destructive-guard.ps1' (New-ToolEvent 'Bash' @{ command = 'git add src/app.ps1' })) 'targeted git add'
+    Assert-Allowed (Invoke-Hook 'destructive-guard.ps1' (New-ToolEvent 'Bash' @{ command = 'psql -c "DELETE FROM accounts WHERE id = 1"' })) 'bounded SQL delete'
     Assert-Allowed (
-        Invoke-HookWithoutClosingInput 'destructive-guard.ps1' (New-ToolEvent 'Bash' @{ command = 'Write-Output ok' })
+        Invoke-HookProcess 'destructive-guard.ps1' (New-ToolEvent 'Bash' @{ command = 'Write-Output ok' })
     ) 'destructive guard without stdin EOF'
+    Assert-Denied (Invoke-HookProcess 'destructive-guard.ps1' -InputMode Eof) 'destructive guard EOF without JSON'
+    Assert-Denied (Invoke-HookProcess 'destructive-guard.ps1' -InputMode OpenEmpty) 'destructive guard bounded empty input'
+    Assert-Denied (Invoke-HookProcess 'destructive-guard.ps1' @{}) 'destructive guard missing event fields'
 
     Assert-Denied (
         Invoke-Hook 'destructive-mcp-guard.ps1' (New-ToolEvent 'mcp__cloud__remove_bucket' @{ bucket = 'prod' })
@@ -134,8 +157,10 @@ try {
         Invoke-Hook 'destructive-mcp-guard.ps1' (New-ToolEvent 'mcp__cloud__list_buckets' @{})
     ) 'read-only MCP'
     Assert-Allowed (
-        Invoke-HookWithoutClosingInput 'destructive-mcp-guard.ps1' (New-ToolEvent 'mcp__cloud__list_buckets' @{})
+        Invoke-HookProcess 'destructive-mcp-guard.ps1' (New-ToolEvent 'mcp__cloud__list_buckets' @{})
     ) 'MCP guard without stdin EOF'
+    Assert-Denied (Invoke-HookProcess 'destructive-mcp-guard.ps1' -InputMode Eof) 'MCP guard EOF without JSON'
+    Assert-Denied (Invoke-HookProcess 'destructive-mcp-guard.ps1' @{}) 'MCP guard missing event fields'
 
     $protectedPatch = "*** Begin Patch`n*** Update File: .agents/skills/run-protocol/SKILL.md`n@@`n-old`n+new`n*** End Patch"
     $protectedMovePatch = "*** Begin Patch`n*** Update File: src/app.ps1`n*** Move to: .agents/skills/run-protocol/SKILL.md`n@@`n-old`n+new`n*** End Patch"
@@ -150,8 +175,10 @@ try {
         Invoke-Hook 'extensions-gate.ps1' (New-ToolEvent 'apply_patch' @{ command = $safePatch })
     ) 'safe targeted edit'
     Assert-Allowed (
-        Invoke-HookWithoutClosingInput 'extensions-gate.ps1' (New-ToolEvent 'apply_patch' @{ command = $safePatch })
+        Invoke-HookProcess 'extensions-gate.ps1' (New-ToolEvent 'apply_patch' @{ command = $safePatch })
     ) 'extensions gate without stdin EOF'
+    Assert-Denied (Invoke-HookProcess 'extensions-gate.ps1' -InputMode Eof) 'extensions gate EOF without JSON'
+    Assert-Denied (Invoke-HookProcess 'extensions-gate.ps1' @{}) 'extensions gate missing event fields'
 
     $sentinel = Join-Path $testRoot 'iwe-dry-run.flag'
     Set-Content -LiteralPath $sentinel -Value '{"initiator":"test"}' -Encoding UTF8
@@ -163,8 +190,21 @@ try {
         Invoke-Hook 'dry-run-gate.ps1' (New-ToolEvent 'Bash' @{ command = 'git status --short' }) $dryRunEnvironment
     ) 'dry-run read-only command'
     Assert-Allowed (
-        Invoke-HookWithoutClosingInput 'dry-run-gate.ps1' (New-ToolEvent 'Bash' @{ command = 'git status --short' }) $dryRunEnvironment
+        Invoke-HookProcess 'dry-run-gate.ps1' (New-ToolEvent 'Bash' @{ command = 'git status --short' }) $dryRunEnvironment
     ) 'dry-run gate without stdin EOF'
+    Assert-Denied (Invoke-HookProcess 'dry-run-gate.ps1' -InputMode Eof) 'dry-run gate EOF without JSON'
+    Assert-Denied (Invoke-HookProcess 'dry-run-gate.ps1' @{}) 'dry-run gate missing event fields'
+    foreach ($nestedMutation in @(
+        'powershell -NoProfile -Command "Set-Content C:\workspace\state.txt changed"',
+        'powershell -Command "ri C:\workspace\project -Recurse -Force"',
+        'cmd /c "del C:\workspace\state.txt"',
+        'cmd /d /c "del C:\workspace\state.txt"',
+        'iex "Set-Content C:\workspace\state.txt changed"'
+    )) {
+        Assert-Denied (
+            Invoke-Hook 'dry-run-gate.ps1' (New-ToolEvent 'Bash' @{ command = $nestedMutation }) $dryRunEnvironment
+        ) "dry-run nested mutation: $nestedMutation"
+    }
 
     $governancePath = Join-Path $testRoot 'DS-strategy'
     $currentPath = Join-Path $governancePath 'current'
