@@ -608,6 +608,22 @@
       "sha256": "001aae991a6afc5fa75dd7c338b72fb53aff8bd4c4469c94da5f9deb78b060f3"
     },
     {
+      "path": ".codex/hooks/destructive-guard.ps1",
+      "sha256": "809f6bdf2670434cf25e35184307bc54f9b1370277c936fd4771d71c7e9cb8f4"
+    },
+    {
+      "path": ".codex/hooks/destructive-mcp-guard.ps1",
+      "sha256": "6aa47c1ba919a19a6aa2717043a74de962a209fa3c0e4f562a7192b286dde06e"
+    },
+    {
+      "path": ".codex/hooks/dry-run-gate.ps1",
+      "sha256": "8c1ca3f6145977ef6c382d1358a444121d0b4aca911771b3dbaf31a1e22b8934"
+    },
+    {
+      "path": ".codex/hooks/extensions-gate.ps1",
+      "sha256": "9651cb972cda83d02a1ef1cb51bbed9348c8caff0b246415ac510d51a772c7ba"
+    },
+    {
       "path": ".githooks/commit-msg",
       "sha256": "f8507693252517c89deb4b963cdd499aa570dbba6663cb62a2ca4db1f8e2f6b9"
     },
@@ -2609,7 +2625,7 @@
     },
     {
       "path": "setup-codex.ps1",
-      "sha256": "3922519a72619a6a0d125271fe6ccbb88e2973dcc40ff69cb3449f99079c50d9"
+      "sha256": "26448a8963c07aafc189e3520c3cff893b6d4ed34488e900bb192fd7a7348919"
     },
     {
       "path": "setup.sh",
@@ -2680,6 +2696,7 @@
     "scripts/tests/conftest.py",
     "scripts/tests/lib/extract-update-download-batch.sh",
     "scripts/tests/test_agent_dashboard.py",
+    "scripts/tests/test_codex_safety_hooks.ps1",
     "scripts/tests/test_copy_to_aisystant.py",
     "scripts/tests/test_day_close_prepare.py",
     "scripts/tests/test_day_open_checks_runner_false_positive.sh",

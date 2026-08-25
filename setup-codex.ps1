@@ -111,6 +111,117 @@ function Write-CodexSkill {
     Write-Utf8File -Path $skillPath -Content $Content
 }
 
+function New-CodexHookHandler {
+    param([string]$ScriptPath, [string]$StatusMessage)
+    $command = 'powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $ScriptPath + '"'
+    return [ordered]@{
+        type = 'command'
+        command = $command
+        commandWindows = $command
+        timeout = 15
+        statusMessage = $StatusMessage
+    }
+}
+
+function Install-CodexHooks {
+    $sourceDir = Join-Path $TemplateDir '.codex\hooks'
+    $targetDir = Join-Path $Workspace '.codex\hooks'
+    $hookNames = @(
+        'destructive-guard.ps1',
+        'destructive-mcp-guard.ps1',
+        'extensions-gate.ps1',
+        'dry-run-gate.ps1'
+    )
+
+    Ensure-Directory $targetDir
+    foreach ($name in $hookNames) {
+        $source = Join-Path $sourceDir $name
+        if (-not (Test-Path -LiteralPath $source)) {
+            throw "Codex hook source not found: $source"
+        }
+        Copy-Item -LiteralPath $source -Destination (Join-Path $targetDir $name) -Force
+    }
+
+    # This validator moved to DS-strategy's Git pre-commit hook. Remove only
+    # the exact generated Codex-era copy so stale files do not imply activation.
+    $legacyProtocolHook = Join-Path $targetDir 'protocol-artifact-validate.ps1'
+    if (Test-Path -LiteralPath $legacyProtocolHook) {
+        Remove-Item -LiteralPath $legacyProtocolHook -Force
+    }
+
+    $destructiveGuard = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'destructive-guard.ps1') -StatusMessage 'Проверка безопасности команды'
+    $dryRunGate = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'dry-run-gate.ps1') -StatusMessage 'Проверка режима репетиции'
+    $extensionsGate = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'extensions-gate.ps1') -StatusMessage 'Проверка слоя файла'
+    $destructiveMcpGuard = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'destructive-mcp-guard.ps1') -StatusMessage 'Проверка безопасности MCP-вызова'
+
+    $configuration = [ordered]@{
+        description = 'Native Codex safety hooks installed by setup-codex.ps1.'
+        hooks = [ordered]@{
+            PreToolUse = @(
+                [ordered]@{
+                    matcher = '^Bash$'
+                    hooks = @($destructiveGuard, $dryRunGate)
+                },
+                [ordered]@{
+                    matcher = 'Edit|Write'
+                    hooks = @($extensionsGate, $dryRunGate)
+                },
+                [ordered]@{
+                    matcher = '^mcp__.*'
+                    hooks = @($destructiveMcpGuard, $dryRunGate)
+                }
+            )
+        }
+    }
+    $json = $configuration | ConvertTo-Json -Depth 8
+    Write-Utf8File -Path (Join-Path $Workspace '.codex\hooks.json') -Content ($json + [Environment]::NewLine)
+}
+
+function Install-StrategyGitHooks {
+    $strategyDir = Join-Path $Workspace 'DS-strategy'
+    if (-not (Test-Path -LiteralPath $strategyDir)) { return }
+
+    $sourceHooks = Join-Path $TemplateDir 'seed\strategy\.githooks'
+    $targetHooks = Join-Path $strategyDir '.githooks'
+    Ensure-Directory $targetHooks
+
+    $validatorName = 'protocol-artifact-validate.py'
+    Copy-Item -LiteralPath (Join-Path $sourceHooks $validatorName) -Destination (Join-Path $targetHooks $validatorName) -Force
+
+    $preCommitPath = Join-Path $targetHooks 'pre-commit'
+    if (-not (Test-Path -LiteralPath $preCommitPath)) {
+        Copy-Item -LiteralPath (Join-Path $sourceHooks 'pre-commit') -Destination $preCommitPath
+        return
+    }
+
+    $beginMarker = '# BEGIN IWE PROTOCOL ARTIFACT VALIDATION'
+    $preCommit = Get-Content -LiteralPath $preCommitPath -Raw -Encoding UTF8
+    if ($preCommit.Contains($beginMarker)) { return }
+
+    $block = @'
+# BEGIN IWE PROTOCOL ARTIFACT VALIDATION
+IWE_PROTOCOL_PYTHON=""
+for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" --version >/dev/null 2>&1; then
+        IWE_PROTOCOL_PYTHON="$candidate"
+        break
+    fi
+done
+if [ -z "$IWE_PROTOCOL_PYTHON" ]; then
+    echo "PROTOCOL ARTIFACT: Python не найден — обязательная проверка не выполнена."
+    exit 1
+fi
+"$IWE_PROTOCOL_PYTHON" "$REPO_ROOT/.githooks/protocol-artifact-validate.py" --repo "$REPO_ROOT" --staged
+# END IWE PROTOCOL ARTIFACT VALIDATION
+'@
+    $exitPattern = [regex]::new('(?m)^exit 0\r?$')
+    if (-not $exitPattern.IsMatch($preCommit)) {
+        throw "Cannot install protocol artifact validation: final 'exit 0' not found in $preCommitPath"
+    }
+    $updated = $exitPattern.Replace($preCommit, $block.TrimEnd() + [Environment]::NewLine + [Environment]::NewLine + 'exit 0', 1)
+    Write-Utf8File -Path $preCommitPath -Content $updated
+}
+
 function Refresh-AgentInstructions {
     $adapterHeader = @'
 > **Codex adapter for Windows/Yandex Disk.** This file is generated from the upstream IWE `AGENTS.md`.
@@ -141,7 +252,13 @@ function Test-Installation {
         '.agents\skills\iwe-session\SKILL.md',
         '.agents\skills\iwe-strategy-session\SKILL.md',
         '.agents\skills\iwe-day-open\SKILL.md',
-        '.agents\skills\iwe-day-close\SKILL.md'
+        '.agents\skills\iwe-day-close\SKILL.md',
+        '.codex\hooks.json',
+        '.codex\hooks\destructive-guard.ps1',
+        '.codex\hooks\destructive-mcp-guard.ps1',
+        '.codex\hooks\extensions-gate.ps1',
+        '.codex\hooks\dry-run-gate.ps1',
+        'DS-strategy\.githooks\protocol-artifact-validate.py'
     )
 
     $errors = 0
@@ -163,6 +280,19 @@ function Test-Installation {
             $errors++
         } else {
             Write-Host '  OK  AGENTS.md placeholders resolved' -ForegroundColor Green
+        }
+    }
+
+    $hooksPath = Join-Path $Workspace '.codex\hooks.json'
+    if (Test-Path -LiteralPath $hooksPath) {
+        try {
+            $hooksConfig = Get-Content -LiteralPath $hooksPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if (-not $hooksConfig.hooks.PreToolUse) { throw 'PreToolUse is missing' }
+            Write-Host '  OK  Codex hooks generated and configured' -ForegroundColor Green
+            Write-Host '  NOTE hook trust is user-managed; review changed hooks with /hooks' -ForegroundColor Yellow
+        } catch {
+            Write-Host "  ERR .codex/hooks.json is invalid: $($_.Exception.Message)" -ForegroundColor Red
+            $errors++
         }
     }
 
@@ -197,7 +327,9 @@ foreach ($relative in $requiredTemplateItems) {
 
 if ($RefreshInstructions) {
     Refresh-AgentInstructions
-    Write-Host 'Codex instructions refreshed.' -ForegroundColor Green
+    Install-CodexHooks
+    Install-StrategyGitHooks
+    Write-Host 'Codex instructions and safety hooks refreshed.' -ForegroundColor Green
     exit 0
 }
 
@@ -208,8 +340,10 @@ Write-Host "  Workspace: $Workspace"
 Ensure-Directory $Workspace
 Ensure-Directory (Join-Path $Workspace 'extensions')
 Ensure-Directory (Join-Path $Workspace '.agents\skills')
+Ensure-Directory (Join-Path $Workspace '.codex\hooks')
 
 Refresh-AgentInstructions
+Install-CodexHooks
 
 Copy-MissingTree -Source (Join-Path $TemplateDir 'memory') -Destination (Join-Path $Workspace 'memory')
 $memoryIndex = Join-Path $Workspace 'memory\MEMORY.md'
@@ -248,6 +382,7 @@ This is the private governance repository for plans, strategy, captures, decisio
 Use Russian unless the user writes in English. Never invent goals or commitments for the user.
 '@
 Write-Utf8File -Path (Join-Path $strategyDir 'AGENTS.md') -Content $strategyAgents
+Install-StrategyGitHooks
 
 $sessionSkill = @'
 ---

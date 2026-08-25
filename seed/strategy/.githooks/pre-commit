@@ -2,11 +2,30 @@
 # Pre-commit hook: block secrets file from being committed
 # Install: git config core.hooksPath .githooks (done automatically by setup.sh)
 
+set -eu
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
 if git diff --cached --name-only 2>/dev/null | grep -q '\.exocortex\.env'; then
     echo "SECURITY: .exocortex.env is staged for commit — this file contains secrets!"
     echo "  Remove from staging: git restore --staged .exocortex.env"
     echo "  The file is in .gitignore — verify it's listed there."
     exit 1
 fi
+
+# BEGIN IWE PROTOCOL ARTIFACT VALIDATION
+IWE_PROTOCOL_PYTHON=""
+for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" --version >/dev/null 2>&1; then
+        IWE_PROTOCOL_PYTHON="$candidate"
+        break
+    fi
+done
+if [ -z "$IWE_PROTOCOL_PYTHON" ]; then
+    echo "PROTOCOL ARTIFACT: Python не найден — обязательная проверка не выполнена."
+    exit 1
+fi
+"$IWE_PROTOCOL_PYTHON" "$REPO_ROOT/.githooks/protocol-artifact-validate.py" --repo "$REPO_ROOT" --staged
+# END IWE PROTOCOL ARTIFACT VALIDATION
 
 exit 0
