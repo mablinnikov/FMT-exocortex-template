@@ -230,7 +230,13 @@ try {
 
     $installRoot = Join-Path $testRoot 'installed'
     $installHooks = Join-Path $installRoot 'DS-strategy\.githooks'
+    $installMemory = Join-Path $installRoot 'memory'
+    $installExtensions = Join-Path $installRoot 'extensions'
     New-Item -ItemType Directory -Path $installHooks -Force | Out-Null
+    New-Item -ItemType Directory -Path $installMemory -Force | Out-Null
+    New-Item -ItemType Directory -Path $installExtensions -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $installMemory 'pilot-memory.md') -Value "memory`r`nstate" -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $installExtensions 'pilot-extension.yaml') -Value "enabled: true" -Encoding UTF8
     $preCommitStub = @'
 #!/bin/bash
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -241,9 +247,33 @@ exit 0
     if ($LASTEXITCODE -ne 0) { throw 'setup-codex.ps1 -RefreshInstructions failed' }
     $configuration = Get-Content -LiteralPath (Join-Path $installRoot '.codex\hooks.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $commands = @($configuration.hooks.PreToolUse | ForEach-Object { $_.hooks } | ForEach-Object { $_.commandWindows })
+    $postToolCommands = @($configuration.hooks.PostToolUse | ForEach-Object { $_.hooks } | ForEach-Object { $_.commandWindows })
     foreach ($name in @('destructive-guard.ps1', 'destructive-mcp-guard.ps1', 'extensions-gate.ps1', 'dry-run-gate.ps1')) {
         if (-not ($commands -match [regex]::Escape($name))) { throw "generated hooks.json does not register $name" }
         if (-not (Test-Path -LiteralPath (Join-Path $installRoot ".codex\hooks\$name"))) { throw "setup did not copy $name" }
+    }
+    if (-not ($postToolCommands -match 'memory-exocortex-sync\.ps1')) { throw 'generated hooks.json does not register memory-exocortex-sync.ps1' }
+    $installedMemorySync = Join-Path $installRoot '.codex\hooks\memory-exocortex-sync.ps1'
+    if (-not (Test-Path -LiteralPath $installedMemorySync)) { throw 'setup did not copy memory-exocortex-sync.ps1' }
+    & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $installedMemorySync
+    if ($LASTEXITCODE -ne 0) { throw 'memory-exocortex-sync.ps1 failed' }
+    $mirroredMemory = Join-Path $installRoot 'DS-strategy\exocortex\pilot-memory.md'
+    $mirroredExtension = Join-Path $installRoot 'DS-strategy\exocortex\extensions\pilot-extension.yaml'
+    if (-not (Test-Path -LiteralPath $mirroredMemory)) { throw 'memory-exocortex-sync.ps1 did not mirror memory' }
+    if (-not (Test-Path -LiteralPath $mirroredExtension)) { throw 'memory-exocortex-sync.ps1 did not mirror extensions' }
+
+    $syncSentinel = Join-Path $testRoot 'memory-sync-dry-run.flag'
+    Set-Content -LiteralPath $syncSentinel -Value 'active' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $installMemory 'pilot-memory.md') -Value 'must not mirror during dry-run' -Encoding UTF8
+    $savedSyncSentinel = [Environment]::GetEnvironmentVariable('IWE_DRY_RUN_SENTINEL', 'Process')
+    try {
+        [Environment]::SetEnvironmentVariable('IWE_DRY_RUN_SENTINEL', $syncSentinel, 'Process')
+        & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $installedMemorySync
+    } finally {
+        [Environment]::SetEnvironmentVariable('IWE_DRY_RUN_SENTINEL', $savedSyncSentinel, 'Process')
+    }
+    if ((Get-Content -LiteralPath $mirroredMemory -Raw -Encoding UTF8) -match 'must not mirror') {
+        throw 'memory-exocortex-sync.ps1 wrote during dry-run'
     }
     if ($commands -match 'protocol-artifact-validate') { throw 'protocol validator must not be registered as a Codex hook' }
     if (-not (Test-Path -LiteralPath (Join-Path $installHooks 'protocol-artifact-validate.py'))) { throw 'setup did not install the Git validator' }

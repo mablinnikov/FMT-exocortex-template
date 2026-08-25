@@ -624,6 +624,10 @@
       "sha256": "9740407354c0a4612a6f168b4b2157f0ebf3752f635f464538887d20ce2e5ec2"
     },
     {
+      "path": ".codex/hooks/memory-exocortex-sync.ps1",
+      "sha256": "4c1f4c13c2115770aa2617d9ad08245dd2530af68b8c7a53d68ea9eeda915107"
+    },
+    {
       "path": ".githooks/commit-msg",
       "sha256": "f8507693252517c89deb4b963cdd499aa570dbba6663cb62a2ca4db1f8e2f6b9"
     },
@@ -2625,7 +2629,7 @@
     },
     {
       "path": "setup-codex.ps1",
-      "sha256": "26448a8963c07aafc189e3520c3cff893b6d4ed34488e900bb192fd7a7348919"
+      "sha256": "36eb4f6f32724e4d8393b3d8f83c639d376eca4d978a835c70af9d69445661f6"
     },
     {
       "path": "setup.sh",

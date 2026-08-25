@@ -130,7 +130,8 @@ function Install-CodexHooks {
         'destructive-guard.ps1',
         'destructive-mcp-guard.ps1',
         'extensions-gate.ps1',
-        'dry-run-gate.ps1'
+        'dry-run-gate.ps1',
+        'memory-exocortex-sync.ps1'
     )
 
     Ensure-Directory $targetDir
@@ -153,6 +154,7 @@ function Install-CodexHooks {
     $dryRunGate = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'dry-run-gate.ps1') -StatusMessage 'Проверка режима репетиции'
     $extensionsGate = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'extensions-gate.ps1') -StatusMessage 'Проверка слоя файла'
     $destructiveMcpGuard = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'destructive-mcp-guard.ps1') -StatusMessage 'Проверка безопасности MCP-вызова'
+    $memorySync = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'memory-exocortex-sync.ps1') -StatusMessage 'Синхронизация памяти с экзокортексом'
 
     $configuration = [ordered]@{
         description = 'Native Codex safety hooks installed by setup-codex.ps1.'
@@ -169,6 +171,12 @@ function Install-CodexHooks {
                 [ordered]@{
                     matcher = '^mcp__.*'
                     hooks = @($destructiveMcpGuard, $dryRunGate)
+                }
+            )
+            PostToolUse = @(
+                [ordered]@{
+                    matcher = 'Bash|Edit|Write'
+                    hooks = @($memorySync)
                 }
             )
         }
@@ -258,6 +266,7 @@ function Test-Installation {
         '.codex\hooks\destructive-mcp-guard.ps1',
         '.codex\hooks\extensions-gate.ps1',
         '.codex\hooks\dry-run-gate.ps1',
+        '.codex\hooks\memory-exocortex-sync.ps1',
         'DS-strategy\.githooks\protocol-artifact-validate.py'
     )
 
