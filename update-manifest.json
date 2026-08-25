@@ -609,19 +609,19 @@
     },
     {
       "path": ".codex/hooks/destructive-guard.ps1",
-      "sha256": "809f6bdf2670434cf25e35184307bc54f9b1370277c936fd4771d71c7e9cb8f4"
+      "sha256": "61b48acdd9138d0fffc506b98c06fd98eb63b909c13aa915fb34d8895c1fe8ee"
     },
     {
       "path": ".codex/hooks/destructive-mcp-guard.ps1",
-      "sha256": "6aa47c1ba919a19a6aa2717043a74de962a209fa3c0e4f562a7192b286dde06e"
+      "sha256": "3f6b14c6ec44dadbd22468982c3d1aea5b08767cdb54090f06aad8affcb4b8a0"
     },
     {
       "path": ".codex/hooks/dry-run-gate.ps1",
-      "sha256": "8c1ca3f6145977ef6c382d1358a444121d0b4aca911771b3dbaf31a1e22b8934"
+      "sha256": "9125edd066a33b390d242ffabf1338581f00e92afe7caadf6ddb44cb52410fee"
     },
     {
       "path": ".codex/hooks/extensions-gate.ps1",
-      "sha256": "9651cb972cda83d02a1ef1cb51bbed9348c8caff0b246415ac510d51a772c7ba"
+      "sha256": "590336b1a81437a0bb2ae9ba2126b5bd29456dc5ed003b7a1704e4563f193f2d"
     },
     {
       "path": ".githooks/commit-msg",

@@ -62,7 +62,11 @@ function Get-GitInvocations {
     }
 }
 
-$raw = [Console]::In.ReadToEnd()
+$readTask = [Console]::In.ReadLineAsync()
+if (-not $readTask.Wait(5000)) {
+    Deny-ToolCall 'Защитный Codex-hook не получил входной JSON за 5 секунд; команда заблокирована.'
+}
+$raw = [string]$readTask.Result
 try {
     $event = $raw | ConvertFrom-Json
 } catch {

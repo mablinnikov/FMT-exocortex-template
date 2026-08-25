@@ -32,6 +32,49 @@ function Invoke-Hook {
     }
 }
 
+function Invoke-HookWithoutClosingInput {
+    param(
+        [string]$Name,
+        [hashtable]$Event,
+        [hashtable]$Environment = @{}
+    )
+
+    $processInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $processInfo.FileName = 'powershell.exe'
+    $processInfo.Arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + (Join-Path $hooksRoot $Name) + '"'
+    $processInfo.UseShellExecute = $false
+    $processInfo.CreateNoWindow = $true
+    $processInfo.RedirectStandardInput = $true
+    $processInfo.RedirectStandardOutput = $true
+    $processInfo.RedirectStandardError = $true
+    foreach ($entry in $Environment.GetEnumerator()) {
+        $processInfo.EnvironmentVariables[$entry.Key] = [string]$entry.Value
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $processInfo
+    try {
+        [void]$process.Start()
+        $json = $Event | ConvertTo-Json -Depth 8 -Compress
+        $process.StandardInput.WriteLine($json)
+        $process.StandardInput.Flush()
+        if (-not $process.WaitForExit(3000)) {
+            $process.Kill()
+            $process.WaitForExit()
+            throw "$Name waited for stdin EOF instead of processing one JSON object"
+        }
+
+        $output = $process.StandardOutput.ReadToEnd().Trim()
+        $errorOutput = $process.StandardError.ReadToEnd().Trim()
+        if ($process.ExitCode -ne 0) {
+            throw "$Name exited with code $($process.ExitCode)`: $errorOutput"
+        }
+        return $output
+    } finally {
+        $process.Dispose()
+    }
+}
+
 function New-ToolEvent {
     param([string]$ToolName, [hashtable]$ToolInput, [string]$Cwd = $testRoot)
     return @{
@@ -80,6 +123,9 @@ try {
     }
     Assert-Allowed (Invoke-Hook 'destructive-guard.ps1' (New-ToolEvent 'Bash' @{ command = 'git status --short' })) 'git status'
     Assert-Allowed (Invoke-Hook 'destructive-guard.ps1' (New-ToolEvent 'Bash' @{ command = 'git add src/app.ps1' })) 'targeted git add'
+    Assert-Allowed (
+        Invoke-HookWithoutClosingInput 'destructive-guard.ps1' (New-ToolEvent 'Bash' @{ command = 'Write-Output ok' })
+    ) 'destructive guard without stdin EOF'
 
     Assert-Denied (
         Invoke-Hook 'destructive-mcp-guard.ps1' (New-ToolEvent 'mcp__cloud__remove_bucket' @{ bucket = 'prod' })
@@ -87,6 +133,9 @@ try {
     Assert-Allowed (
         Invoke-Hook 'destructive-mcp-guard.ps1' (New-ToolEvent 'mcp__cloud__list_buckets' @{})
     ) 'read-only MCP'
+    Assert-Allowed (
+        Invoke-HookWithoutClosingInput 'destructive-mcp-guard.ps1' (New-ToolEvent 'mcp__cloud__list_buckets' @{})
+    ) 'MCP guard without stdin EOF'
 
     $protectedPatch = "*** Begin Patch`n*** Update File: .agents/skills/run-protocol/SKILL.md`n@@`n-old`n+new`n*** End Patch"
     $protectedMovePatch = "*** Begin Patch`n*** Update File: src/app.ps1`n*** Move to: .agents/skills/run-protocol/SKILL.md`n@@`n-old`n+new`n*** End Patch"
@@ -100,6 +149,9 @@ try {
     Assert-Allowed (
         Invoke-Hook 'extensions-gate.ps1' (New-ToolEvent 'apply_patch' @{ command = $safePatch })
     ) 'safe targeted edit'
+    Assert-Allowed (
+        Invoke-HookWithoutClosingInput 'extensions-gate.ps1' (New-ToolEvent 'apply_patch' @{ command = $safePatch })
+    ) 'extensions gate without stdin EOF'
 
     $sentinel = Join-Path $testRoot 'iwe-dry-run.flag'
     Set-Content -LiteralPath $sentinel -Value '{"initiator":"test"}' -Encoding UTF8
@@ -110,6 +162,9 @@ try {
     Assert-Allowed (
         Invoke-Hook 'dry-run-gate.ps1' (New-ToolEvent 'Bash' @{ command = 'git status --short' }) $dryRunEnvironment
     ) 'dry-run read-only command'
+    Assert-Allowed (
+        Invoke-HookWithoutClosingInput 'dry-run-gate.ps1' (New-ToolEvent 'Bash' @{ command = 'git status --short' }) $dryRunEnvironment
+    ) 'dry-run gate without stdin EOF'
 
     $governancePath = Join-Path $testRoot 'DS-strategy'
     $currentPath = Join-Path $governancePath 'current'

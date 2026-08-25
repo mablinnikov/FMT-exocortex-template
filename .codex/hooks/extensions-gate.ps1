@@ -16,7 +16,11 @@ function Deny-ToolCall {
     exit 0
 }
 
-$raw = [Console]::In.ReadToEnd()
+$readTask = [Console]::In.ReadLineAsync()
+if (-not $readTask.Wait(5000)) {
+    Deny-ToolCall 'входной JSON не поступил за 5 секунд; правка заблокирована.'
+}
+$raw = [string]$readTask.Result
 try {
     $event = $raw | ConvertFrom-Json
 } catch {
