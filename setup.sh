@@ -90,7 +90,7 @@ if $VALIDATE_ONLY; then
 
     # Check required files
     echo "[2/4] Файлы..."
-    CHECK_FILES="CLAUDE.md memory/MEMORY.md memory/protocol-open.md memory/protocol-close.md memory/protocol-work.md memory/navigation.md memory/roles.md"
+    CHECK_FILES="CLAUDE.md AGENTS.md memory/MEMORY.md memory/protocol-open.md memory/protocol-close.md memory/protocol-work.md memory/navigation.md memory/roles.md memory/reference/agent-core.md"
     for f in $CHECK_FILES; do
         if [ -f "$SCRIPT_DIR/$f" ]; then
             echo "  ✓ $f"
@@ -159,7 +159,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR"
 
 # Verify we're inside the template
-if [ ! -f "$TEMPLATE_DIR/CLAUDE.md" ] || [ ! -d "$TEMPLATE_DIR/memory" ]; then
+if [ ! -f "$TEMPLATE_DIR/CLAUDE.md" ] || [ ! -f "$TEMPLATE_DIR/AGENTS.md" ] || [ ! -d "$TEMPLATE_DIR/memory" ]; then
     echo "ERROR: This script must be run from the root of FMT-exocortex-template."
     echo "  Expected: $TEMPLATE_DIR/CLAUDE.md and $TEMPLATE_DIR/memory/"
     echo ""
@@ -454,15 +454,11 @@ fi
 
 # (Repo rename removed — folder stays as FMT-exocortex-template)
 
-# === 2. Copy CLAUDE.md to workspace root (with substitution) ===
-# FMT/CLAUDE.md остаётся clean upstream (плейсхолдеры). В workspace/CLAUDE.md
-# плейсхолдеры подставляются (single-file substitution, не sed по дереву).
-# .base копии — substituted (для 3-way merge).
-echo "[2/6] Installing CLAUDE.md..."
-if $DRY_RUN; then
-    echo "  [DRY RUN] Would copy: $TEMPLATE_DIR/CLAUDE.md → $WORKSPACE_DIR/CLAUDE.md (substituted)"
-else
-    cp "$TEMPLATE_DIR/CLAUDE.md" "$WORKSPACE_DIR/CLAUDE.md"
+# === 2. Copy agent adapters to workspace root (with substitution) ===
+# FMT-адаптеры остаются clean upstream. В workspace плейсхолдеры подставляются
+# только в двух производных файлах; .claude.md.base нужен для 3-way merge.
+substitute_instruction_placeholders() {
+    local target="$1"
     sed_inplace \
         -e "s|{{GITHUB_USER}}|$GITHUB_USER|g" \
         -e "s|{{WORKSPACE_DIR}}|$WORKSPACE_DIR|g" \
@@ -474,19 +470,30 @@ else
         -e "s|{{GOVERNANCE_REPO}}|$GOVERNANCE_REPO|g" \
         -e "s|{{IWE_TEMPLATE}}|$IWE_TEMPLATE_PATH|g" \
         -e "s|{{IWE_RUNTIME}}|$IWE_RUNTIME_PATH|g" \
-        "$WORKSPACE_DIR/CLAUDE.md"
+        "$target"
+}
+
+echo "[2/6] Installing agent instructions..."
+if $DRY_RUN; then
+    echo "  [DRY RUN] Would copy: $TEMPLATE_DIR/CLAUDE.md → $WORKSPACE_DIR/CLAUDE.md (substituted)"
+    echo "  [DRY RUN] Would copy: $TEMPLATE_DIR/AGENTS.md → $WORKSPACE_DIR/AGENTS.md (substituted)"
+else
+    for adapter in CLAUDE.md AGENTS.md; do
+        cp "$TEMPLATE_DIR/$adapter" "$WORKSPACE_DIR/$adapter"
+        substitute_instruction_placeholders "$WORKSPACE_DIR/$adapter"
+    done
     # Workspace merge base is substituted. The template repo must never receive
     # this copy: doing so publishes install paths when update.sh commits the fork.
     cp "$WORKSPACE_DIR/CLAUDE.md" "$WORKSPACE_DIR/.claude.md.base"
-    echo "  Copied to $WORKSPACE_DIR/CLAUDE.md (+ merge base, substituted)"
+    echo "  Copied CLAUDE.md and AGENTS.md (+ Claude merge base, substituted)"
 fi
 
 # === 3. Copy memory to Claude projects directory ===
 echo "[3/6] Installing memory..."
 CLAUDE_MEMORY_DIR="$HOME/.claude/projects/$CLAUDE_PROJECT_SLUG/memory"
 if $DRY_RUN; then
-    MEM_COUNT=$(ls "$TEMPLATE_DIR/memory/"*.md 2>/dev/null | wc -l | tr -d ' ')
-    YAML_COUNT=$(ls "$TEMPLATE_DIR/memory/"*.yaml "$TEMPLATE_DIR/memory/"*.yml 2>/dev/null | wc -l | tr -d ' ')
+    MEM_COUNT=$(find "$TEMPLATE_DIR/memory" -type f -name '*.md' | wc -l | tr -d ' ')
+    YAML_COUNT=$(find "$TEMPLATE_DIR/memory" -type f \( -name '*.yaml' -o -name '*.yml' \) | wc -l | tr -d ' ')
     echo "  [DRY RUN] Would copy $MEM_COUNT .md + $YAML_COUNT .yaml/.yml memory files → $CLAUDE_MEMORY_DIR/"
     if [ ! -e "$WORKSPACE_DIR/memory" ]; then
         echo "  [DRY RUN] Would create symlink: $WORKSPACE_DIR/memory → $CLAUDE_MEMORY_DIR"
@@ -495,11 +502,12 @@ if $DRY_RUN; then
     fi
 else
     mkdir -p "$CLAUDE_MEMORY_DIR"
-    cp "$TEMPLATE_DIR/memory/"*.md "$CLAUDE_MEMORY_DIR/"
-    # Deliver yaml/yml configs (e.g. day-rhythm-config.yaml) alongside .md files
-    for f in "$TEMPLATE_DIR/memory/"*.yaml "$TEMPLATE_DIR/memory/"*.yml; do
-        [ -f "$f" ] && cp "$f" "$CLAUDE_MEMORY_DIR/"
-    done
+    while IFS= read -r -d '' source_file; do
+        relative="${source_file#"$TEMPLATE_DIR/memory/"}"
+        mkdir -p "$CLAUDE_MEMORY_DIR/$(dirname "$relative")"
+        cp "$source_file" "$CLAUDE_MEMORY_DIR/$relative"
+    done < <(find "$TEMPLATE_DIR/memory" -type f \
+        \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' \) -print0)
     echo "  Copied to $CLAUDE_MEMORY_DIR"
 
     # Create symlink so CLAUDE.md references (memory/protocol-open.md etc.) resolve from workspace root
@@ -543,10 +551,11 @@ else
     fi
 fi
 
-# === 4b. Propagate skills, hooks, rules, lib, config, detectors, scripts, styles to workspace ===
-echo "[4b] Installing skills, hooks, rules, rules-lazy, lib, config, detectors, scripts, styles..."
+# === 4b. Propagate agent adapters and runtime support to workspace ===
+echo "[4b] Installing agent skills, hooks, rules, lib, config, detectors, scripts, styles..."
 if $DRY_RUN; then
     echo "  [DRY RUN] Would copy .claude/{skills,hooks,rules,rules-lazy,lib,config,detectors,scripts,agents,styles}/ → $WORKSPACE_DIR/.claude/"
+    echo "  [DRY RUN] Would copy .agents/skills/ → $WORKSPACE_DIR/.agents/skills/"
 else
     mkdir -p "$WORKSPACE_DIR/.claude"
     # lib/config/detectors — runtime dependencies капчер-шины (capture-bus.sh) и детекторов
@@ -563,6 +572,11 @@ else
     if [ -f "$TEMPLATE_DIR/.claude/settings.json" ]; then
         cp "$TEMPLATE_DIR/.claude/settings.json" "$WORKSPACE_DIR/.claude/settings.json"
         echo "  ✓ .claude/settings.json"
+    fi
+    if [ -d "$TEMPLATE_DIR/.agents/skills" ]; then
+        mkdir -p "$WORKSPACE_DIR/.agents"
+        cp -r "$TEMPLATE_DIR/.agents/skills" "$WORKSPACE_DIR/.agents/"
+        echo "  ✓ .agents/skills/ → $WORKSPACE_DIR/.agents/skills/"
     fi
 fi
 
@@ -937,6 +951,7 @@ else
     echo ""
     echo "Verify installation:"
     echo "  ✓ CLAUDE.md:   $WORKSPACE_DIR/CLAUDE.md"
+    echo "  ✓ AGENTS.md:   $WORKSPACE_DIR/AGENTS.md"
     echo "  ✓ Memory:      $CLAUDE_MEMORY_DIR/ ($(ls "$CLAUDE_MEMORY_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ') files)"
     echo "  ✓ Symlink:     $WORKSPACE_DIR/memory → $CLAUDE_MEMORY_DIR"
     echo "  ✓ $GOVERNANCE_REPO: $MY_STRATEGY_DIR/"

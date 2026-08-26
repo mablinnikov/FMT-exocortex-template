@@ -1,0 +1,15 @@
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+IWE_WORKSPACE = "{{WORKSPACE_DIR}}"
+WORKSPACE_DIR = "{{WORKSPACE_DIR}}"
+IWE_ROOT = "{{WORKSPACE_DIR}}"
+IWE_TEMPLATE = "{{IWE_TEMPLATE}}"
+IWE_RUNTIME = "{{IWE_RUNTIME}}"
+IWE_GOVERNANCE_REPO = "{{GOVERNANCE_REPO}}"
+
+[mcp_servers.iwe-knowledge]
+url = "https://mcp.aisystant.com/mcp"
+enabled = true
+default_tools_approval_mode = "writes"

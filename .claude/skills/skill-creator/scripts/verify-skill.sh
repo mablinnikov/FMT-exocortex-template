@@ -108,11 +108,11 @@ check_scaffold_templates() {
 }
 
 check_l1_location() {
-  local file="$1" skill_name="$2"
+  local file="$1" skill_name="$2" skills_dir="$3"
   local layer
   layer=$(grep "^layer:" "$file" | sed 's/^layer: *//' | tr -d '"' | xargs)
   [ "$layer" = "L1" ] || return 0
-  local fmt_path="$HOME/IWE/FMT-exocortex-template/.claude/skills/$skill_name/SKILL.md"
+  local fmt_path="$skills_dir/$skill_name/SKILL.md"
   if [ -f "$fmt_path" ]; then
     ok "L1 skill present in FMT-exocortex-template"
   else
@@ -148,7 +148,7 @@ check_body_sections "$SKILL_PATH" "skill"
 check_gates "$SKILL_PATH"
 check_bundled_resources "$SKILL_PATH" "$SKILL_DIR"
 [ "$SKILL_NAME" = "skill-creator" ] && check_scaffold_templates "$SKILL_DIR"
-check_l1_location "$SKILL_PATH" "$SKILL_NAME"
+check_l1_location "$SKILL_PATH" "$SKILL_NAME" "$SKILLS_DIR"
 
 echo ""
 if [ "$FAILED" -eq 0 ]; then

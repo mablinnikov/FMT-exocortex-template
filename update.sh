@@ -1069,7 +1069,7 @@ for entry in data.get('files', []):
                     fi
                 fi
                 ;;
-            .claude/skills/*|.claude/hooks/*|.claude/rules/*|.claude/rules-lazy/*|.claude/lib/*|.claude/config/*|.claude/detectors/*|.claude/scripts/*|.claude/agents/*|.claude/styles/*|.claude/templates/*)
+            .agents/skills/*|.claude/skills/*|.claude/hooks/*|.claude/rules/*|.claude/rules-lazy/*|.claude/lib/*|.claude/config/*|.claude/detectors/*|.claude/scripts/*|.claude/agents/*|.claude/styles/*|.claude/templates/*)
                 dst="$WORKSPACE_DIR/$fpath"
                 if [ ! -f "$dst" ]; then
                     mkdir -p "$(dirname "$dst")"
@@ -1086,6 +1086,15 @@ for entry in data.get('files', []):
                         echo "  ⟲ $fpath → workspace (stale repair)"
                         REPAIRED=$((REPAIRED + 1))
                     fi
+                fi
+                ;;
+            .codex/config.toml)
+                dst="$WORKSPACE_DIR/$fpath"
+                if [ ! -f "$dst" ]; then
+                    mkdir -p "$(dirname "$dst")"
+                    substitute_claude_placeholders "$SCRIPT_DIR/$fpath" "$dst"
+                    echo "  ⟲ $fpath → workspace (repair, new install)"
+                    REPAIRED=$((REPAIRED + 1))
                 fi
                 ;;
             .claude/settings.json)
@@ -1946,7 +1955,7 @@ for f in "${UPDATED_FILES[@]}"; do
         fi
     elif [ "$f" = "AGENTS-agent-blocks.md" ]; then
         replace_template_file_preserving_user_space "$TMPDIR_UPDATE/files/$f" "$SCRIPT_DIR/$f" "$f"
-    elif [[ "$f" == .claude/skills/*/SKILL.md ]]; then
+    elif [[ "$f" == .claude/skills/*/SKILL.md || "$f" == .agents/skills/*/SKILL.md ]]; then
         # USER-SPACE preserve for L1 skill spec files (no install_constants in SCRIPT_DIR — already {{KEY}})
         CURR_SKILL_FILE="$SCRIPT_DIR/$f"
         if [ -f "$CURR_SKILL_FILE" ]; then
@@ -1972,12 +1981,12 @@ for f in "${UPDATED_FILES[@]}"; do
     APPLIED=$((APPLIED + 1))
 done
 
-# AGENTS.md — производный файл. После доставки его входов пересобираем
-# шаблонную копию до обновления Codex-адаптера в workspace.
+# CLAUDE.md и AGENTS.md — производные адаптеры общего ядра. После доставки
+# любого входа пересобираем их до обновления Codex-адаптера в workspace.
 AGENT_INSTRUCTIONS_CHANGED=false
 for f in "${NEW_FILES[@]}" "${UPDATED_FILES[@]}"; do
     case "$f" in
-        CLAUDE.md|AGENTS-agent-blocks.md|scripts/sync-agent-instructions.sh)
+        CLAUDE.md|AGENTS-agent-blocks.md|memory/reference/agent-core.md|scripts/sync-agent-instructions.sh)
             AGENT_INSTRUCTIONS_CHANGED=true
             break
             ;;
@@ -1985,10 +1994,10 @@ for f in "${NEW_FILES[@]}" "${UPDATED_FILES[@]}"; do
 done
 if $AGENT_INSTRUCTIONS_CHANGED; then
     if WORKSPACE_DIR="$SCRIPT_DIR" IWE_ROOT="$SCRIPT_DIR" bash "$SCRIPT_DIR/scripts/sync-agent-instructions.sh" --force; then
-        APPLIED_PATHS+=("AGENTS.md")
-        echo "  ✓ AGENTS.md: пересобран из канонических источников"
+        APPLIED_PATHS+=("CLAUDE.md" "AGENTS.md")
+        echo "  ✓ CLAUDE.md и AGENTS.md: пересобраны из общего ядра"
     else
-        echo "ОШИБКА: не удалось пересобрать AGENTS.md после обновления его источников." >&2
+        echo "ОШИБКА: не удалось пересобрать агентские адаптеры после обновления их источников." >&2
         exit "$EXIT_RUNTIME"
     fi
 fi
@@ -2378,7 +2387,7 @@ fi
 # lib/config/detectors — runtime dependencies капчер-шины (capture-bus.sh) и детекторов.
 for f in "${NEW_FILES[@]}" "${UPDATED_FILES[@]}"; do
     case "$f" in
-        .claude/skills/*/SKILL.md)
+        .claude/skills/*/SKILL.md|.agents/skills/*/SKILL.md)
             src="$SCRIPT_DIR/$f"
             dst="$WORKSPACE_DIR/$f"
             if is_author_mode && [ -f "$dst" ]; then
@@ -2421,7 +2430,7 @@ for f in "${NEW_FILES[@]}" "${UPDATED_FILES[@]}"; do
                 echo "  ✓ $f → workspace"
             fi
             ;;
-        .claude/skills/*|.claude/hooks/*|.claude/rules/*|.claude/rules-lazy/*|.claude/lib/*|.claude/config/*|.claude/detectors/*|.claude/scripts/*|.claude/agents/*|.claude/styles/*|.claude/templates/*)
+        .agents/skills/*|.claude/skills/*|.claude/hooks/*|.claude/rules/*|.claude/rules-lazy/*|.claude/lib/*|.claude/config/*|.claude/detectors/*|.claude/scripts/*|.claude/agents/*|.claude/styles/*|.claude/templates/*)
             src="$SCRIPT_DIR/$f"
             dst="$WORKSPACE_DIR/$f"
             if is_author_mode && [ -f "$dst" ]; then
@@ -2431,6 +2440,17 @@ for f in "${NEW_FILES[@]}" "${UPDATED_FILES[@]}"; do
             mkdir -p "$(dirname "$dst")"
             if copy_platform_file_preserving_user_space "$src" "$dst" "$f"; then
                 echo "  ✓ $f → workspace"
+            fi
+            ;;
+        .codex/config.toml)
+            src="$SCRIPT_DIR/$f"
+            dst="$WORKSPACE_DIR/$f"
+            if [ ! -f "$dst" ]; then
+                mkdir -p "$(dirname "$dst")"
+                substitute_claude_placeholders "$src" "$dst"
+                echo "  ✓ $f → workspace (new install)"
+            else
+                echo "  ○ $f — существующая конфигурация Codex сохранена"
             fi
             ;;
         .claude/settings.json)
@@ -2662,7 +2682,7 @@ def _locally_excluded(rel):
     return any(rel == e.rstrip("/") or rel.startswith(e.rstrip("/") + "/")
                for e in local_excluded)
 
-L1_DIRS = [".claude/hooks", ".claude/rules", ".claude/skills"]
+L1_DIRS = [".agents/skills", ".claude/hooks", ".claude/rules", ".claude/skills"]
 L1_PREFIXES = ["memory/protocol-"]
 
 orphans = []

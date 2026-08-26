@@ -321,6 +321,45 @@ exit 0
     Set-Content -LiteralPath (Join-Path $installHooks 'pre-commit') -Value $preCommitStub -Encoding UTF8
     & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $templateRoot 'setup-codex.ps1') -Workspace $installRoot -RefreshInstructions | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'setup-codex.ps1 -RefreshInstructions failed' }
+    $installedAgentsPath = Join-Path $installRoot 'AGENTS.md'
+    $installedCorePath = Join-Path $installRoot 'memory\reference\agent-core.md'
+    if (-not (Test-Path -LiteralPath $installedCorePath)) { throw 'setup did not install the common agent core' }
+    $installedAgents = Get-Content -LiteralPath $installedAgentsPath -Raw -Encoding UTF8
+    $installedCore = Get-Content -LiteralPath $installedCorePath -Raw -Encoding UTF8
+    if ($installedAgents -match '\{\{(WORKSPACE_DIR|HOME_DIR|GOVERNANCE_REPO|IWE_TEMPLATE)\}\}') {
+        throw 'installed AGENTS.md contains unresolved placeholders'
+    }
+    foreach ($invariant in @(
+        'fetch` + fast-forward',
+        'Файла нет → гейт штатно выключен',
+        'NEVER `git add -u`, `git add .`, `git add -A`',
+        'get_instructions(level="experienced")'
+    )) {
+        if (-not $installedAgents.Contains($invariant) -or -not $installedCore.Contains($invariant)) {
+            throw "common instruction invariant was not delivered: $invariant"
+        }
+    }
+    if ([Text.Encoding]::UTF8.GetByteCount($installedAgents) -gt 32768) {
+        throw 'installed AGENTS.md exceeds the default Codex instruction limit'
+    }
+    if (((Get-Item -LiteralPath $installedCorePath).Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw 'common agent core must be a physical file, not a symlink or junction'
+    }
+    foreach ($skillName in @('iwe-session', 'iwe-day-open', 'iwe-day-close', 'iwe-week-close', 'iwe-strategy-session')) {
+        $skillPath = Join-Path $installRoot ".agents\skills\$skillName\SKILL.md"
+        if (-not (Test-Path -LiteralPath $skillPath)) { throw "setup did not install $skillName" }
+        $skillText = Get-Content -LiteralPath $skillPath -Raw -Encoding UTF8
+        if ($skillText -match 'TodoWrite|executor:\s*(haiku|sonnet|opus)|`/(run-protocol|day-open|day-close|week-close|strategy-session)`|~/\.claude') {
+            throw "$skillName contains a Claude-only command or model alias"
+        }
+        if ($skillText -notmatch '<!-- USER-SPACE -->[\s\S]*<!-- /USER-SPACE -->') {
+            throw "$skillName does not preserve the user extension block"
+        }
+    }
+    $installedConfig = Get-Content -LiteralPath (Join-Path $installRoot '.codex\config.toml') -Raw -Encoding UTF8
+    if ($installedConfig -notmatch '(?m)^\[mcp_servers\.iwe-knowledge\]$') {
+        throw 'setup did not configure iwe-knowledge for Codex'
+    }
     $configuration = Get-Content -LiteralPath (Join-Path $installRoot '.codex\hooks.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $sessionStartCommands = @($configuration.hooks.SessionStart | ForEach-Object { $_.hooks } | ForEach-Object { $_.commandWindows })
     $commands = @($configuration.hooks.PreToolUse | ForEach-Object { $_.hooks } | ForEach-Object { $_.commandWindows })

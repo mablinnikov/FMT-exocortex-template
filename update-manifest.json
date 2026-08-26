@@ -8,6 +8,26 @@
       "sha256": "40f8b3d924848fac222b26506975f69213d608924104ff0236a7bc26bd43994c"
     },
     {
+      "path": ".agents/skills/iwe-day-close/SKILL.md",
+      "sha256": "642a5bcaa1bb4d82007433481963499666146068f0d42f259f5bdc86483ed5fa"
+    },
+    {
+      "path": ".agents/skills/iwe-day-open/SKILL.md",
+      "sha256": "5c98ce181f5ee7ba9f1d3274e70d8ec702db385dac1b3090035e02ba08dda4e3"
+    },
+    {
+      "path": ".agents/skills/iwe-session/SKILL.md",
+      "sha256": "9be6b4c4cff8f87375037861325dbf7dd76e81de61a5c3df970ca5fc357a1a73"
+    },
+    {
+      "path": ".agents/skills/iwe-strategy-session/SKILL.md",
+      "sha256": "703dc72996837c51ca75c4c38ccb6b4b1fa84a4db5a275f49c5e6ea055906bf3"
+    },
+    {
+      "path": ".agents/skills/iwe-week-close/SKILL.md",
+      "sha256": "25d4f069036d72a1bca535b5c7a4b8a72f70b0c8330b4c91d80120e7cb12dadd"
+    },
+    {
       "path": ".claude/agents/wp-sync-actualizer.md",
       "sha256": "224cdb263231374275c68fe46993d1be2fe2395fb10968e55de97546f828636d"
     },
@@ -529,7 +549,7 @@
     },
     {
       "path": ".claude/skills/skill-creator/scripts/verify-skill.sh",
-      "sha256": "8cd3a28578ad22530d9ba905ab65b8475057cb2850afaa13def5375582695d58"
+      "sha256": "563b8ac52e848aa92216109528843da236aab76708a2a58d70cdbe157ccc2463"
     },
     {
       "path": ".claude/skills/strategy-session/SKILL.md",
@@ -608,6 +628,10 @@
       "sha256": "001aae991a6afc5fa75dd7c338b72fb53aff8bd4c4469c94da5f9deb78b060f3"
     },
     {
+      "path": ".codex/config.toml",
+      "sha256": "b594396e99ea1448128051853260a63ff754dd7b15ed7691149869480d2d625d"
+    },
+    {
       "path": ".codex/hooks/destructive-guard.ps1",
       "sha256": "d3c49cd63d2e8c96ae819c06b2f43cc6d5c7faad2f015bdea7256fed92eda53e"
     },
@@ -673,11 +697,11 @@
     },
     {
       "path": "AGENTS-agent-blocks.md",
-      "sha256": "df3508ebda339358943aaa6c25562d60a15f58a039951d7a8ffea5dcd4f2f6ae"
+      "sha256": "6033d80230f79a760c5482096021477b268c2e5f684928a87132757bd142df94"
     },
     {
       "path": "AGENTS.md",
-      "sha256": "5fd53328b238d440e53b38657e196d43f4c31e40a333c20206347cd7880f2094"
+      "sha256": "c216866b79e8a7e860d7febfabbfe51c6dcdef3b2d7379fd79b63edbdfaa2fe2"
     },
     {
       "path": "CHANGELOG.md",
@@ -685,7 +709,7 @@
     },
     {
       "path": "CLAUDE.md",
-      "sha256": "f3c46ec6406a52abd87872a07f909914a1f44430a01abb9c8ea146179a1c00c4"
+      "sha256": "7c5aeb1bd31387471c58a7b8d48b677b7e2c9f87bf6bc8e497b29c6a49c9f2b8"
     },
     {
       "path": "ONTOLOGY.md",
@@ -753,7 +777,7 @@
     },
     {
       "path": "docs/PORTABILITY.md",
-      "sha256": "f64fcc1765ce82a35b2fa193a4613e03f87302b76eef347e973215f85715bf93"
+      "sha256": "ae5819ae8b10da44880c06fed606d315326d15b7ccf4648d999bc444086dc861"
     },
     {
       "path": "docs/QUICK-START.md",
@@ -1401,7 +1425,7 @@
     },
     {
       "path": "memory/reference/agent-core.md",
-      "sha256": "08e2f1601c52757ea8a266c593563e3e8faedd029a9b6936ebef0994e84322df"
+      "sha256": "0fc09ab84574616328e681f7d8a46db1e34a3ac0349874d8d1646b430edec3fb"
     },
     {
       "path": "memory/repo-type-rules.md",
@@ -2385,7 +2409,7 @@
     },
     {
       "path": "scripts/sync-agent-instructions.sh",
-      "sha256": "be2e17e318c4e1bea46895eb41f06f5f95df51fe2dd899be202fea9c72f863b8"
+      "sha256": "7a27caa134ac4e35bafa1bcb9ab0f5306205002d2b8f39b6b1c40c69d2ce516d"
     },
     {
       "path": "scripts/sync-communication-style.py",
@@ -2589,7 +2613,7 @@
     },
     {
       "path": "scripts/validate-fmt-scripts.sh",
-      "sha256": "0e41119a385f0010624cfb8bcff5c4bcfc8739907c6dbc214b45e0fba475d933"
+      "sha256": "cf234a8ff79225d80c457571adb2b3c8c7627e8862ba6738f5f791c63bc39b18"
     },
     {
       "path": "scripts/validate-hypothesis-priority.sh",
@@ -2633,11 +2657,11 @@
     },
     {
       "path": "setup-codex.ps1",
-      "sha256": "26cae6e8d12167beb4d708967630e22f77dab574a82b92e3f676771a54d740b0"
+      "sha256": "272607b3494d2b4a9eabbaf8f200e77669d8c2a352e61296f76572b2f95fc838"
     },
     {
       "path": "setup.sh",
-      "sha256": "0b1a77f34d84bba032b11875e3de043dd49b37b2b1bfb231bb13081f31d60090"
+      "sha256": "2b12adad4dc3f9558cddacfcab062bb966acea2a8c9b404bb6290669ecf71ff2"
     },
     {
       "path": "setup/build-runtime.sh",
@@ -2657,7 +2681,7 @@
     },
     {
       "path": "setup/validate-template.sh",
-      "sha256": "c681cd7ce3217b466e578608b855ac50ad352b8c5542a8847fd36ec1aeea93dc"
+      "sha256": "fcec1d212864e30b8b26d3a1b6a3a034a9caf82d378273d16bc95e4fe7305ce8"
     },
     {
       "path": "shared/rubrics/form-089.yaml",
@@ -2677,7 +2701,7 @@
     },
     {
       "path": "update.sh",
-      "sha256": "747de7a2b7368842edf6b314eae0c0fb9c7a94f074869f30deb636f20290e252"
+      "sha256": "708f68b0c09dab3830f1aa541e71c23fe9080d9ae209b9ebddc5aecd3c60d454"
     }
   ],
   "excluded_paths": [

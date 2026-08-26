@@ -75,12 +75,12 @@ function Convert-ToCodexAgentInstructions {
     param([string]$Text)
 
     $Text = $Text.Replace(
-        '> **Сгенерировано `scripts/sync-agent-instructions.sh` (WP-394 Ф4.2). НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ.**',
+        '> **Сгенерировано `scripts/sync-agent-instructions.sh` (WP-007 Ф10). НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ.**',
         '> **Codex-развёртывание:** файл создаёт `FMT-exocortex-template/setup-codex.ps1`. НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ.'
     )
     $Text = $Text.Replace(
-        '> Общее ядро → блок `<!-- SYNC-CORE -->` в `CLAUDE.md`. Агент-специфика → `AGENTS-agent-blocks.md`.',
-        '> Канонический источник → `FMT-exocortex-template/AGENTS.md`. Агент-специфика → `AGENTS-agent-blocks.md`.'
+        '> Общее ядро → `memory/reference/agent-core.md`. Агент-специфика Codex/Kimi → `AGENTS-agent-blocks.md`.',
+        '> Канонический источник → `FMT-exocortex-template/memory/reference/agent-core.md`. Агент-специфика → `FMT-exocortex-template/AGENTS-agent-blocks.md`.'
     )
     return $Text
 }
@@ -105,10 +105,25 @@ function Copy-MissingTree {
     }
 }
 
-function Write-CodexSkill {
-    param([string]$Name, [string]$Content)
-    $skillPath = Join-Path $Workspace ".agents\skills\$Name\SKILL.md"
-    Write-Utf8File -Path $skillPath -Content $Content
+function Install-AgentSkills {
+    $sourceDir = Join-Path $TemplateDir '.agents\skills'
+    $targetDir = Join-Path $Workspace '.agents\skills'
+    Ensure-Directory $targetDir
+    Get-ChildItem -LiteralPath $sourceDir -Recurse -File | ForEach-Object {
+        $relative = $_.FullName.Substring($sourceDir.Length).TrimStart('\', '/')
+        $target = Join-Path $targetDir $relative
+        $content = Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8
+        Write-Utf8File -Path $target -Content (Expand-IwePlaceholders $content)
+    }
+}
+
+function Install-CodexConfig {
+    $source = Join-Path $TemplateDir '.codex\config.toml'
+    $target = Join-Path $Workspace '.codex\config.toml'
+    if (-not (Test-Path -LiteralPath $target)) {
+        $content = Get-Content -LiteralPath $source -Raw -Encoding UTF8
+        Write-Utf8File -Path $target -Content (Expand-IwePlaceholders $content)
+    }
 }
 
 function New-CodexHookHandler {
@@ -255,6 +270,11 @@ function Refresh-AgentInstructions {
 
     $blocksSource = Get-Content -LiteralPath (Join-Path $TemplateDir 'AGENTS-agent-blocks.md') -Raw -Encoding UTF8
     Write-Utf8File -Path (Join-Path $Workspace 'AGENTS-agent-blocks.md') -Content (Expand-IwePlaceholders $blocksSource)
+
+    # Platform-owned source of the generated adapters. It is physical on Windows
+    # and refreshed explicitly; Copy-MissingTree intentionally preserves user files.
+    $coreSource = Get-Content -LiteralPath (Join-Path $TemplateDir 'memory\reference\agent-core.md') -Raw -Encoding UTF8
+    Write-Utf8File -Path (Join-Path $Workspace 'memory\reference\agent-core.md') -Content (Expand-IwePlaceholders $coreSource)
 }
 
 function Test-Installation {
@@ -267,12 +287,15 @@ function Test-Installation {
         'memory\protocol-open.md',
         'memory\protocol-work.md',
         'memory\protocol-close.md',
+        'memory\reference\agent-core.md',
         'DS-strategy\docs\Strategy.md',
         'DS-strategy\docs\Dissatisfactions.md',
         '.agents\skills\iwe-session\SKILL.md',
         '.agents\skills\iwe-strategy-session\SKILL.md',
         '.agents\skills\iwe-day-open\SKILL.md',
         '.agents\skills\iwe-day-close\SKILL.md',
+        '.agents\skills\iwe-week-close\SKILL.md',
+        '.codex\config.toml',
         '.codex\hooks.json',
         '.codex\hooks\destructive-guard.ps1',
         '.codex\hooks\destructive-mcp-guard.ps1',
@@ -319,6 +342,29 @@ function Test-Installation {
         }
     }
 
+    $corePath = Join-Path $Workspace 'memory\reference\agent-core.md'
+    if (Test-Path -LiteralPath $corePath) {
+        $expectedCore = Expand-IwePlaceholders (Get-Content -LiteralPath (Join-Path $TemplateDir 'memory\reference\agent-core.md') -Raw -Encoding UTF8)
+        $installedCore = Get-Content -LiteralPath $corePath -Raw -Encoding UTF8
+        if ($installedCore -ceq $expectedCore) {
+            Write-Host '  OK  common agent core matches template' -ForegroundColor Green
+        } else {
+            Write-Host '  ERR common agent core differs from template' -ForegroundColor Red
+            $errors++
+        }
+    }
+
+    $codexConfigPath = Join-Path $Workspace '.codex\config.toml'
+    if (Test-Path -LiteralPath $codexConfigPath) {
+        $codexConfig = Get-Content -LiteralPath $codexConfigPath -Raw -Encoding UTF8
+        if ($codexConfig -match '(?m)^\[mcp_servers\.iwe-knowledge\]$') {
+            Write-Host '  OK  iwe-knowledge configured for Codex' -ForegroundColor Green
+        } else {
+            Write-Host '  ERR .codex\config.toml does not configure iwe-knowledge' -ForegroundColor Red
+            $errors++
+        }
+    }
+
     $strategyDir = Join-Path $Workspace 'DS-strategy'
     $unresolved = @(Get-ChildItem -LiteralPath $strategyDir -Recurse -File |
         Where-Object { $_.Extension -in @('.md', '.yaml', '.yml', '.json', '.sh', '.txt') } |
@@ -341,7 +387,7 @@ if ($Validate) {
     exit 0
 }
 
-$requiredTemplateItems = @('AGENTS.md', 'AGENTS-agent-blocks.md', 'memory', 'seed\strategy')
+$requiredTemplateItems = @('AGENTS.md', 'AGENTS-agent-blocks.md', '.agents\skills', '.codex\config.toml', 'memory', 'seed\strategy')
 foreach ($relative in $requiredTemplateItems) {
     if (-not (Test-Path -LiteralPath (Join-Path $TemplateDir $relative))) {
         throw "Template item not found: $relative"
@@ -350,6 +396,8 @@ foreach ($relative in $requiredTemplateItems) {
 
 if ($RefreshInstructions) {
     Refresh-AgentInstructions
+    Install-AgentSkills
+    Install-CodexConfig
     Install-CodexHooks
     Install-StrategyGitHooks
     Write-Host 'Codex instructions and safety hooks refreshed.' -ForegroundColor Green
@@ -366,6 +414,8 @@ Ensure-Directory (Join-Path $Workspace '.agents\skills')
 Ensure-Directory (Join-Path $Workspace '.codex\hooks')
 
 Refresh-AgentInstructions
+Install-AgentSkills
+Install-CodexConfig
 Install-CodexHooks
 
 Copy-MissingTree -Source (Join-Path $TemplateDir 'memory') -Destination (Join-Path $Workspace 'memory')
@@ -406,68 +456,6 @@ Use Russian unless the user writes in English. Never invent goals or commitments
 '@
 Write-Utf8File -Path (Join-Path $strategyDir 'AGENTS.md') -Content $strategyAgents
 Install-StrategyGitHooks
-
-$sessionSkill = @'
----
-name: iwe-session
-description: Run the IWE Open-Work-Close protocol for any substantial task in this workspace. Use when starting, continuing, or closing focused work with Codex.
----
-
-1. Read `memory/MEMORY.md`, `memory/navigation.md`, and the relevant current plan in `DS-strategy/current/`.
-2. For opening, use `memory/protocol-open.md` conceptually; ignore Claude-only hooks and commands.
-3. State the task, expected result, constraints, and verification before substantial changes.
-4. During work, capture durable decisions or useful knowledge in the appropriate workspace file, not only in chat.
-5. For closing, use `memory/protocol-close.md` conceptually: record the result, unresolved items, and the next action.
-6. Do not schedule or contact external systems unless the user explicitly requests it.
-'@
-Write-CodexSkill -Name 'iwe-session' -Content $sessionSkill
-
-$strategySkill = @'
----
-name: iwe-strategy-session
-description: Conduct an initial or weekly IWE strategy session in Russian. Use when the user asks for a strategic session, goals, dissatisfaction review, or a WeekPlan.
----
-
-1. Read `../AGENTS.md` if working inside `DS-strategy`, then read `memory/MEMORY.md`.
-2. Inspect `DS-strategy/docs/Strategy.md`, `DS-strategy/docs/Dissatisfactions.md`, and `DS-strategy/current/`.
-3. Ask only the questions needed to distinguish the user's actual goals, current dissatisfaction, constraints, and weekly focus.
-4. Never invent goals, metrics, deadlines, or commitments. Mark unresolved items explicitly.
-5. Update the strategy documents and create or update the current WeekPlan only after the user confirms the substance.
-6. Close with decisions, next actions, and what Codex should read in the next session.
-'@
-Write-CodexSkill -Name 'iwe-strategy-session' -Content $strategySkill
-
-$dayOpenSkill = @'
----
-name: iwe-day-open
-description: Prepare the IWE plan for the current day. Use when the user asks to open the day, make today's plan, or choose today's priorities.
----
-
-1. Read `memory/MEMORY.md`, the current WeekPlan, and the latest DayPlan or day-close result.
-2. Identify carry-over work, blocked items, deadlines, and the smallest useful result for today.
-3. Ask the user to resolve only choices that materially change the plan.
-4. Create or update `DS-strategy/current/DayPlan YYYY-MM-DD.md` using `memory/templates-dayplan.md` as guidance.
-5. Do not use Claude hooks, launchd, cron, or external calendars unless separately configured.
-'@
-Write-CodexSkill -Name 'iwe-day-open' -Content $dayOpenSkill
-
-$dayCloseSkill = @'
----
-name: iwe-day-close
-description: Close the current IWE workday and preserve context. Use when the user asks to close the day, summarize results, or prepare tomorrow's handoff.
----
-
-Before updating the DayPlan, read `params.yaml → multiplier_enabled`. When it is `true`, obtain today's physical time from WakaTime with the first available CLI: `$env:USERPROFILE\.wakatime\wakatime-cli-windows-amd64.exe`, `~/.wakatime/wakatime-cli`, or `wakatime-cli`. Run `--today`, then calculate the IWE multiplier as actual completed WP budget divided by WakaTime hours and include both values in the day result. If WakaTime is unavailable or returns zero, report that explicitly and do not invent a multiplier. Never print or copy the WakaTime API key. When the parameter is `false`, omit WakaTime and the multiplier completely.
-
-1. Read today's DayPlan, the current WeekPlan, and the files changed during the day.
-2. Separate completed results, unfinished work, decisions, captures, blockers, and tomorrow's first action.
-3. Update or archive the DayPlan according to the existing `DS-strategy` structure.
-4. Update `memory/MEMORY.md` only with durable context needed by future sessions.
-5. FatSecret and Loop are completed by the user before sleep, after IWE Day Close. Do not wait for them, ask for confirmation, or mark them incomplete/partial during Day Close; record them as a post-close routine.
-6. After Day Close, commit and push the related `DS-strategy` changes automatically. Stage only explicitly reviewed files; never use `git add .`, `git add -A`, or `git add -u`. Include the Codex attribution trailer when Codex changed files.
-7. If commit or push fails, report the cause and leave the repository in a recoverable state. Report any unrelated uncommitted changes that were intentionally excluded.
-'@
-Write-CodexSkill -Name 'iwe-day-close' -Content $dayCloseSkill
 
 Test-Installation
 Write-Host "Next: open $Workspace as a Codex workspace and start a new task." -ForegroundColor Cyan

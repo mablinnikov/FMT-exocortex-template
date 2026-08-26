@@ -284,6 +284,66 @@ if [[ "$MODE" != "scripts" ]]; then
     fi
 fi
 
+# Проверка 8 (WP-007 Ф10): общее ядро — единственный источник двух адаптеров.
+# sync-agent-instructions.sh дополнительно проверяет стандартный Codex-лимит 32 KiB.
+if [[ "$MODE" == "all" && ${#FILES[@]} -eq 0 ]]; then
+    checked=$((checked + 1))
+    sync_output=""
+    if sync_output=$(WORKSPACE_DIR="$FMT_ROOT" IWE_ROOT="$FMT_ROOT" \
+        bash "$FMT_ROOT/scripts/sync-agent-instructions.sh" --check 2>&1); then
+        echo "  ✓ agent instructions: общее ядро и адаптеры синхронизированы"
+    else
+        echo "  ❌ agent instructions: $sync_output" >&2
+        errors=$((errors + 1))
+    fi
+
+    core_text=$(awk '
+      /^[[:space:]]*<!-- AGENT-CORE-START -->[[:space:]]*$/ { grab=1; next }
+      /^[[:space:]]*<!-- AGENT-CORE-END -->[[:space:]]*$/   { grab=0 }
+      grab { print }
+    ' "$FMT_ROOT/memory/reference/agent-core.md")
+    forbidden_core=$(printf '%s\n' "$core_text" \
+        | grep -nE '`/(run-protocol|day-open|day-close|week-close|month-close|author-mode)`|~/\.claude|\$HOME/IWE|memory/.*симлинк|PreToolUse-хук автоматически' \
+        || true)
+    if [[ -n "$forbidden_core" ]]; then
+        echo "  ❌ agent core: найдена Claude/Unix-специфика" >&2
+        echo "$forbidden_core" | head -5 | sed 's/^/     /' >&2
+        errors=$((errors + 1))
+    fi
+
+    for invariant in \
+        'fetch` + fast-forward' \
+        'Файла нет → гейт штатно выключен' \
+        'NEVER `git add -u`, `git add .`, `git add -A`' \
+        'get_instructions(level="experienced")'; do
+        if ! grep -qF "$invariant" "$FMT_ROOT/AGENTS.md" || \
+           ! grep -qF "$invariant" "$FMT_ROOT/CLAUDE.md"; then
+            echo "  ❌ agent instructions: инвариант отсутствует в одном из адаптеров: $invariant" >&2
+            errors=$((errors + 1))
+        fi
+    done
+
+    for skill in iwe-session iwe-day-open iwe-day-close iwe-week-close iwe-strategy-session; do
+        skill_file="$FMT_ROOT/.agents/skills/$skill/SKILL.md"
+        if [[ ! -f "$skill_file" ]]; then
+            echo "  ❌ agent skills: отсутствует $skill/SKILL.md" >&2
+            errors=$((errors + 1))
+            continue
+        fi
+        if ! grep -qF '<!-- USER-SPACE -->' "$skill_file" || \
+           ! grep -qF '<!-- /USER-SPACE -->' "$skill_file"; then
+            echo "  ❌ agent skills: $skill не сохраняет USER-SPACE" >&2
+            errors=$((errors + 1))
+        fi
+        forbidden_skill=$(grep -nEi 'TodoWrite|routing:[[:space:]]*$|executor:[[:space:]]*(haiku|sonnet|opus)|`/(run-protocol|day-open|day-close|week-close|strategy-session)`|~/\.claude' "$skill_file" || true)
+        if [[ -n "$forbidden_skill" ]]; then
+            echo "  ❌ agent skills: $skill содержит привязку к Claude" >&2
+            echo "$forbidden_skill" | head -3 | sed 's/^/     /' >&2
+            errors=$((errors + 1))
+        fi
+    done
+fi
+
 if [[ $errors -eq 0 ]]; then
     label=""
     if [[ "$MODE" == "scripts" ]]; then

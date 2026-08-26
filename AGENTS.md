@@ -1,73 +1,131 @@
 # AGENTS.md
 
-> **Сгенерировано `scripts/sync-agent-instructions.sh` (WP-394 Ф4.2). НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ.**
-> Общее ядро → блок `<!-- SYNC-CORE -->` в `CLAUDE.md`. Агент-специфика → `AGENTS-agent-blocks.md`.
+> **Сгенерировано `scripts/sync-agent-instructions.sh` (WP-007 Ф10). НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ.**
+> Общее ядро → `memory/reference/agent-core.md`. Агент-специфика Codex/Kimi → `AGENTS-agent-blocks.md`.
 
 
-## WP Gate — CRITICAL
+## 1. Архитектура репозиториев
 
-**ЛЮБОЕ задание → протокол Открытия → ДО начала работы.** При создании нового РП: объявить роль, работу, РП, класс верификации, метод, оценку, модель. Дождаться согласования пилота.
+**Base** (ZP, FPF, SPF, FMT-*) = принципы и форматы, первоисточник платформы. **Pack** = паспорт предметной области, первоисточник пользователя. **DS** (instrument/governance/surface) = код, планы и другие производные рабочие продукты.
 
-## State-Transition Gate — CRITICAL
+**Цепочка первоисточников:** DS → Pack → Base (SPF → FPF → ZP). Доменное знание меняют сначала в Pack, затем синхронизируют производные DS. Полная таблица уровней → `memory/repo-type-rules.md`; словарь FPF → `memory/fpf-reference.md`.
 
-**Перед любым нетривиальным действием или РП назвать целевой переход состояния пользователя** `{тип состояния, из→в}` (WP-457) — **применимо, если в `{{GOVERNANCE_REPO}}/docs/state-axes-registry.yaml` описаны оси состояний** (авторский артефакт, не шипится в шаблон по умолчанию). Если файл есть — типы только из него, допустимы только `gate_ready: true`; ссылка на declared FSM-owner обязательна, свободный текст не принимается; нет ссылки или тип не `gate_ready` → действие = inventory → СТОП/отложить. **Файла нет (типовая установка)** → гейт неактивен, действовать по остальным Pre-action Gates без остановки. Модель осей (авторский пример) → `archive/wp-contexts/WP-457/CONCEPT-user-states.md §5`; cross-axis → `memory/reference/agent-core.md`.
+Создание Pack выполняет скилл `pack-new`, если он доступен. При его отсутствии агент читает `SPF/pack-template/` и `SPF/process/01-11`. Имя Pack = существительное-домен, не тема и не инструмент.
 
-## Git Staging — CRITICAL
+## 2. ОРЗ-фрактал: Открытие → Работа → Закрытие
 
-**NEVER `git add -u`, `git add .`, `git add -A`** — подхватывают изменения ДРУГИХ агентов (Kimi/Hermes работают параллельно) → неверная атрибуция. Стейджить только конкретные файлы; перед коммитом `git diff --cached --name-only`, лишнее — `git restore --staged`. Примеры → `memory/reference/agent-core.md`.
+Пропуск Открытия = незапланированная работа. Пропуск Закрытия = незафиксированный результат.
 
-## Artifact Naming
+- Сессия: `memory/protocol-open.md` → `memory/protocol-work.md` → `memory/protocol-close.md`.
+- День, неделя, месяц и стратегия: использовать одноимённый скилл текущего агента; при его отсутствии следовать соответствующему файлу протокола.
+- Названия инструментов, планировщиков задач и моделей переводить в возможности текущего агента. Не предполагать наличие Claude `Skill`, `TodoWrite` или Anthropic model aliases.
 
-**Do not invent artifact names.** Names for sections, documents, RPs, and deliverables must come from the plan/task you received. If the task is silent on a name — report "need clarification on name" instead of making one up.
+### Блокирующие правила
 
-## Drift Reporting
+1. **WP Gate:** любое задание → проверить РП и пройти Открытие до начала содержательной работы. Новый РП регистрировать только после явного согласия пилота.
+2. **Удалённые изменения:** `push`, расписания, напоминания и внешние сообщения выполнять только по явному запросу. Слова «заливай», «запуши» и «закрывай» дают разрешение на обычный `commit + push`, но не на `force` и не на переписывание истории.
+3. **Close:** триггер Закрытия → выполнить `memory/protocol-close.md`, а не ограничиваться кратким отчётом.
+4. **Обновление репозитория:** автоматически обновлять только чистую отслеживаемую ветку через `fetch` + fast-forward. Грязное дерево, расхождение веток, незавершённую Git-операцию и отсутствие upstream пропускать с предупреждением. Не использовать скрывающие правки `rebase --autostash` и автоматический stash.
+5. **Проверка:** класс верификации определяет способ приёмки. Не использовать в общем ядре vendor-specific имена моделей; независимого проверяющего выбирать из возможностей текущего агента.
+6. **Защищённый слой:** без явного разрешения не менять адаптеры и защитный контур (`.claude/hooks|scripts/`, `.codex/`, `.agents/`, `.iwe-runtime/`, `FMT-exocortex-template/`) и не обходить блокирующие проверки. Блокировка → безопасная диагностика и сообщение пилоту.
+7. **Автономность:** некритичные обратимые решения принимать самостоятельно. Остановиться перед необратимо-разрушительным действием, новым обязательством пользователя, WP Gate или развилкой, существенно меняющей результат.
+8. **Финиш важнее откладывания:** дополнительную задачу в согласованном scope по умолчанию доводить сейчас; расширение scope и внешние действия требуют отдельного решения.
 
-Discrepancy found (file ≠ plan, stale content): **report to pilot, do not silently fix.** Format: "Found drift: [what] in [file]. Should I fix it?" Fix only if explicitly instructed.
+### Протокол Работы
 
-## Working Directory
+**Capture-to-Pack:** на рубеже проверить, возникло ли знание для записи. Правило → общее ядро или Pack правил; доменное знание → Pack; реализационное → документация DS; урок → `memory/`. Для нового артефакта сначала применить карту размещения.
+
+**Самокоррекция:** расхождение внутри scope текущей работы исправлять после проверки первоисточника. Расхождение за пределами scope → сообщить как drift и не исправлять без разрешения.
+
+### Предварительные гейты
+
+- Начало работы → определить затронутые сервисы и репозитории.
+- Нетривиальное действие → применить State-Transition Gate, только если существует реестр осей со статусом `gate_ready: true`.
+- Пользовательский сценарий → назвать затронутое обещание сервиса.
+- Новый или переносимый артефакт → проверить карту размещения.
+- Первое содержательное действие в репозитории → прочитать ближайший файл инструкций, который нативно поддерживает текущий агент, и `REPO-TYPE.md`, если он существует.
+- Архитектурное решение → применить `archgate`.
+- Чувствительные данные → пройти раздел безопасности АрхГейта до реализации.
+- Новый инструмент или интеграция → обещание → сценарии → роль → реализация.
+- Замена legacy-компонента → сначала восстановить его фактический контракт по коду и тестам.
+
+## 3. Описания методов
+
+Работа до 15 минут не требует отдельного описания метода. Для изменения внутри системы прочитать её `PROCESSES.md`. Для новой системы сначала определить сценарии, процессы и данные.
+
+## 4. Память и навигация
+
+Навигация → `memory/navigation.md`; типы репозиториев → `memory/repo-type-rules.md`; различения → `memory/hard-distinctions.md`; FPF, SOTA и роли → `memory/fpf-reference.md`, `memory/sota-reference.md`, `memory/roles.md`; чеклисты → `memory/checklists.md`.
+
+Файлы рабочего пространства должны быть физическими. Не предполагать символические ссылки, Unix-home или конкретную проекцию памяти агента. Канонические platform-файлы меняют в `FMT-exocortex-template`; развёрнутые копии обновляет установщик или генератор.
+
+## 5. АрхГейт
+
+Архитектурное решение проходит профиль ЭМОГССБ и вето-фильтр без агрегатного балла. Критические характеристики задаёт пилот. Всегда проверить Context Engineering (Write/Select/Compress/Isolate), DDD Strategic и coupling по knowledge/distance/volatility. Решение с блокером в критической характеристике не реализовывать.
+
+## 6. Операционные инварианты
+
+### WP Gate — CRITICAL
+
+**ЛЮБОЕ задание → протокол Открытия → ДО начала работы.** При создании нового РП объявить роль, работу, РП, класс верификации, метод, оценку и модель. Дождаться согласования пилота.
+
+### State-Transition Gate — CRITICAL
+
+Гейт применим, только если в `{{GOVERNANCE_REPO}}/docs/state-axes-registry.yaml` описаны оси состояний. Типы брать только из этого файла; допустимы только `gate_ready: true` со ссылкой на declared FSM-owner. **Файла нет → гейт штатно выключен и не блокирует работу.** Реестр автоматически не создавать и не активировать.
+
+### Git Staging — CRITICAL
+
+**NEVER `git add -u`, `git add .`, `git add -A`.** Стейджить только конкретные файлы. Перед коммитом выполнить `git diff --cached --name-only`; лишнее убрать через `git restore --staged <file>`.
+
+### Artifact Naming
+
+Не придумывать имена артефактов. Использовать имя из плана или задания; если его нет и выбор существенно влияет на систему — запросить уточнение.
+
+### Drift Reporting
+
+Расхождение файла с планом или первоисточником сначала сообщить пилоту. Исправлять только внутри явно согласованного scope или после отдельного разрешения.
+
+### Working Directory
 
 `{{WORKSPACE_DIR}}/`
 
-## Status Reporting — Agent Status Registry (РП-395)
+### Status Reporting
 
-**Primary (обязательно):** в начале задачи `agent_status_update(agent=<claude-code|kimi|codex|hermes>, status=working, task=<кратко>, files=[...])`; по завершении — `status=idle`. Статусы: `idle|working|peer-session|blocked`; пилот видит всех через `agent_status_list`. Командный режим (`repo=`) и fail-safe скрипт → `memory/reference/agent-core.md`.
+В начале задачи вызвать `agent_status_update(agent=<claude-code|kimi|codex|hermes>, status=working, task=<кратко>, files=[...])`; по завершении — `status=idle`. Допустимые статусы: `idle|working|peer-session|blocked`. Недоступность MCP не блокирует локальную работу: сообщить о деградации и продолжить безопасно.
 
-## Long Operation Protocol — 180 s Silence Threshold
+Основной знаниевый MCP-адаптер — `iwe-knowledge`. Для него использовать `get_instructions(level="experienced")`. Инструменты знаний и цифрового двойника применять только с действующим consent и рабочей деградацией при недоступности MCP.
 
-**Не молчи больше 180 секунд.** Операция >180с → ДО запуска сообщить: что запускается, длительность, шаг X из Y, id фоновой задачи. >180с тишины → микро-отчёт «Всё ещё работаю. Текущий шаг: [X из Y]. Следующий: [Z].» Касается всего, где пилот видит пустое «Thinking» (bash, subagent, фоновые задачи, Close-протоколы).
+### Long Operation Protocol
 
-## WP-REGISTRY Naming — CRITICAL
+Не молчать больше 180 секунд. Перед долгой операцией сообщить шаг и ожидаемое время; каждые 180 секунд давать краткий статус.
 
-**Колонка «Название» в WP-REGISTRY содержит ТОЛЬКО имя артефакта ≤80 символов** — без дат, ссылок на сессии, метрик, SHA и прочих служебных данных.
+### WP-REGISTRY Naming — CRITICAL
 
-**Колонка «#» содержит только целое число без префикса и ведущих нулей:** `8`, а не `WP-8`, `WP-008` или `008`. Формат `WP-008` используется в путях, заголовках и ссылках. Перед коммитом, затрагивающим реестр, запустить `check-wp-format.py ... --exit-nonzero` и пересобрать `active-wp.md` через `build-active-wp.py`.
+Колонка «Название» содержит только имя артефакта не длиннее 80 символов. Колонка «#» содержит только целое число без префикса и ведущих нулей. Перед коммитом реестра запустить его форматную проверку и пересобрать `active-wp.md`.
 
-**Куда писать остальное:** итог закрытия → `## Закрытие` в `archive/wp-contexts/`; фазы/прогресс → frontmatter `inbox/WP-NNN/WP-NNN.md` (всегда папка — WP-434), при смене статуса фаз обновлять frontmatter, НЕ имя реестра. Полный текст и примеры ✅/❌ → `memory/reference/agent-core.md`.
+Итог закрытия хранить в `## Закрытие`; фазы и прогресс — в frontmatter `inbox/WP-NNN/WP-NNN.md`, не в имени реестра.
 
-## WP Context Scope — Umbrella РП
+### WP Context Scope
 
-Umbrella-РП с `agent_scope: open-only` (WP-5, WP-7) — читать **только** фазы `pending`/`in_progress`/`blocked`; архивные — не читать без явного запроса пользователя.
+Для зонтичного РП с `agent_scope: open-only` читать только фазы `pending`, `in_progress` и `blocked`; архивные фазы не загружать без явного запроса.
 
-## Calendar Events — CRITICAL
+### Calendar Events — CRITICAL
 
-**All agent-created reminders and calendar events must be scheduled BEFORE 09:00 AM** (позже — только с явного одобрения пилота). Создано после 09:00 по ошибке → удалить + пересоздать до 09:00 + сообщить пилоту (шаги → `memory/reference/agent-core.md`).
+Создаваемые агентом напоминания и события назначать до 09:00. Более позднее время — только с явного одобрения пилота.
 
-## Language
+### Language and Response Style
 
-Respond in Russian unless the user writes in English.
+Отвечать по-русски, если пользователь не пишет по-английски. В чате с пилотом сначала сообщать результат и следующее решение; технический журнал, SHA и внутреннюю механику не выводить без запроса. Подробные правила → `memory/feedback_response_clarity_for_pilot.md`.
 
-## Response Style — Pilot-Facing
+### Code Style
 
-Правила понятного ответа пилоту (полный текст — `memory/feedback_response_clarity_for_pilot.md`) — в чате, синтезе отчётов и пост-отчётах после действий.
+Перед коммитом запустить форматтер и линтер репозитория. Тест обязан проверять наблюдаемый результат. Третье повторение вынести в функцию. Мёртвые ветки удалять. `except: pass` без журналирования запрещён. Функции со смешанными обязанностями разделять.
 
-**Channel detector:** технический стиль — стенограммы peer-сессий, commit, PR; «на пальцах» — чат с пилотом (если тот сам не пишет `grep`/`git`/пути/SHA) и §1-§4 синтеза report.md.
+## 7. Контекст и обновление
 
-**Eleven rules (A1-A11), short:** A1 путь файла не подлежащее (только в скобках после русского глагола); A2 английский термин только после русского описания в скобках; A3 первое упоминание колонки/функции — расшифровка одним словом; A4 pre-flight: примет ли пилот решение по этой фразе; A5 ЧТО до КАК; A6 одна стрелка-следствие на предложение; A7 «сделал → эффект», `<details>` — только при наличии нужных пилоту деталей или по его явному запросу; A7.1 журнал (SHA, коммиты, дефекты) — только в файл отчёта, не в чат; A8 журнал процесса по умолчанию не писать; A9 channel detector; A10 английские маркеры статуса (exit/PASS/SHA) → русские слова; A11 активный залог на ошибках и находках.
+Общее ядро должно оставаться компактным и стабильным. Для Codex итоговый `AGENTS.md` не должен превышать стандартный предел обнаружения 32 КиБ. Агентская специфика хранится отдельно от ядра.
 
-## Code Style — Engineering (DP.SC.172)
-
-
-**P-правила, short:** P0 перед коммитом — форматтер+линтер репо (механику закрывает инструмент); P1 тест без проверки наблюдаемого результата запрещён (`assert True` — запах); P2 третье повторение → функция, не `locals()[str]`; P3 мёртвую ветку/enum удалять, не «для совместимости»; P4 `except: pass` без логирования запрещён; P5 длинную функцию со смешанными обязанностями / булевы флаги-режимы — разбить. Граница: жёсткие запреты (`git add -A`, секреты) — в PACK-agent-rules (AR.*), не здесь. (Доставка/детекторы по агенту → `memory/reference/agent-core.md`.)
+`memory/reference/agent-core.md` = канонический источник. `CLAUDE.md` и `AGENTS.md` пересобирает `scripts/sync-agent-instructions.sh`; вручную правят только источник, агентские блоки и отмеченные пользовательские секции. Обновление L1 не должно менять `extensions/`, `params.yaml` и другие L3-артефакты.
 
 
 
@@ -78,7 +136,7 @@ Respond in Russian unless the user writes in English.
 | Инструмент запуска | Ты — | Модель/вендор |
 |---|---|---|
 | `kimi` CLI / расширение Kimi для VS Code | **Kimi Code** | Kimi K2 (Moonshot AI) |
-| `codex` CLI / расширение ChatGPT | **Codex** | GPT-5 Codex (OpenAI) |
+| `codex` CLI / приложение ChatGPT | **Codex** | модель OpenAI, выбранная рантаймом Codex |
 | `claude` CLI / Claude Code | **Claude Code** | Claude (Anthropic) |
 | Aisystant MCP / Telegram-оркестратор | **Hermes** | Hermes (Nous Research) |
 
@@ -127,43 +185,27 @@ git commit -m "feat: description" --trailer "Co-Authored-By: Hermes <noreply@nou
 
 **Hermes Agent** — оркестратор в экосистеме IWE (РП392). Подключён к Aisystant MCP, работает через CLI/Telegram. Hermes НЕ заменяет Claude Code или Kimi Code в кодинге — он координирует, запоминает и даёт мобильный доступ.
 
-## IWE Instructions Level (Kimi headless)
-
-# IWE workspace with 5000+ docs and multiple Packs — use experienced level.
-# Revisit if a new small repo (< 1000 docs) is added to {{HOME_DIR}}/IWE/.
-When calling `get_instructions` (Aisystant MCP) to load IWE context,
-use `level="experienced"` instead of the default `level="full"`.
-This reduces token load by ~89% (~10K → ~1.1K) on every headless turn.
-
-Example:
-```
-get_instructions(level="experienced")
-```
-
-This applies to all Kimi sessions: peer (via kimi-peer-adapter.sh) and standalone.
-Determination basis: `get_user_context()` document_count ≥ 5000 + multiple Packs.
-
 ## Coordination Protocol (MCP Gateway)
 
-> Для агентов с доступом к Local Gateway (Claude Code, Kimi). Hermes НЕ имеет MCP Gateway
-> (`acquire_file_lock` / `release_file_lock`) — он использует `terminal` + `patch` напрямую,
-> а при конфликте на push сообщает пилоту.
+> Codex и Kimi всегда объявляют работу через `agent_status_update`. Блокировки файлов
+> использовать только когда Local Gateway действительно предоставляет соответствующие
+> инструменты; отсутствие блокировок не должно имитироваться или останавливать локальную работу.
 
 Before starting any edit task:
 
 1. **Declare intention** (no lock needed):
    ```
-   Tool: update_peer_status
-   params: { "status": "working", "current_task": "<brief>", "files": ["relative/path/file.md"] }
+   Tool: agent_status_update
+   params: { "agent": "<codex|kimi>", "status": "working", "task": "<brief>", "files": ["relative/path/file.md"] }
    ```
 
-2. **Acquire lock** before first Edit:
+2. **Acquire lock**, если инструмент доступен, before first Edit:
    ```
    Tool: acquire_file_lock
    param: canonical_file = relative path from IWE root
    ```
 
-3. **Release lock** after commit:
+3. **Release lock**, если он был получен, after commit:
    ```
    Tool: release_file_lock
    ```

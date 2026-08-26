@@ -45,11 +45,11 @@ TEMPLATE_DIR="${TEMPLATE_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 FAIL=0
 
 # Guard: post-setup state + default pristine mode → подсказать installed-режим и выйти.
-# Детектор стабильный: {{HOME_DIR}} в pristine FMT/CLAUDE.md гарантирован (используется в §4 Memory + §9 Авторское).
+# Детектор стабильный: {{WORKSPACE_DIR}} присутствует в общем ядре и в pristine CLAUDE.md.
 if [ "$MODE" = "pristine" ] \
    && [ -f "$TEMPLATE_DIR/CLAUDE.md" ] \
-   && ! grep -q '{{HOME_DIR}}' "$TEMPLATE_DIR/CLAUDE.md" 2>/dev/null; then
-    echo "ВНИМАНИЕ: FMT обработан setup.sh (плейсхолдер {{HOME_DIR}} в CLAUDE.md уже подставлен)."
+   && ! grep -q '{{WORKSPACE_DIR}}' "$TEMPLATE_DIR/CLAUDE.md" 2>/dev/null; then
+    echo "ВНИМАНИЕ: FMT обработан setup.sh (плейсхолдер {{WORKSPACE_DIR}} в CLAUDE.md уже подставлен)."
     echo ""
     echo "Pristine-режим (default) применим к:"
     echo "  • CI (.github/workflows/validate-template.yml)"
@@ -351,10 +351,16 @@ fi
 # 5. Обязательные файлы
 echo -n "[5/5] Required files... "
 MISSING=0
-for f in CLAUDE.md ONTOLOGY.md README.md \
+for f in CLAUDE.md AGENTS.md AGENTS-agent-blocks.md ONTOLOGY.md README.md \
          memory/MEMORY.md memory/hard-distinctions.md \
          memory/protocol-open.md memory/protocol-close.md \
-         memory/navigation.md \
+         memory/navigation.md memory/reference/agent-core.md \
+         .agents/skills/iwe-session/SKILL.md \
+         .agents/skills/iwe-day-open/SKILL.md \
+         .agents/skills/iwe-day-close/SKILL.md \
+         .agents/skills/iwe-week-close/SKILL.md \
+         .agents/skills/iwe-strategy-session/SKILL.md \
+         .codex/config.toml \
          roles/strategist/scripts/strategist.sh; do
     if [ ! -f "$TEMPLATE_DIR/$f" ]; then
         echo ""

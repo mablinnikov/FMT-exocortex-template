@@ -1,8 +1,8 @@
 <!-- AGENT-SPECIFIC-START -->
 <!--
-  Агент-специфичные блоки AGENTS.md (WP-394 Ф4.2).
-  НЕ синхронизируется из CLAUDE.md — у каждого агента своё.
-  Врезается скриптом scripts/sync-agent-instructions.sh после SYNC-CORE.
+  Специфика адаптера AGENTS.md для Codex и Kimi (WP-007 Ф10).
+  Общее ядро находится в memory/reference/agent-core.md.
+  Скрипт scripts/sync-agent-instructions.sh добавляет этот блок после ядра.
 -->
 
 ## Идентичность конструктивной реализации — CRITICAL
@@ -12,7 +12,7 @@
 | Инструмент запуска | Ты — | Модель/вендор |
 |---|---|---|
 | `kimi` CLI / расширение Kimi для VS Code | **Kimi Code** | Kimi K2 (Moonshot AI) |
-| `codex` CLI / расширение ChatGPT | **Codex** | GPT-5 Codex (OpenAI) |
+| `codex` CLI / приложение ChatGPT | **Codex** | модель OpenAI, выбранная рантаймом Codex |
 | `claude` CLI / Claude Code | **Claude Code** | Claude (Anthropic) |
 | Aisystant MCP / Telegram-оркестратор | **Hermes** | Hermes (Nous Research) |
 
@@ -61,43 +61,27 @@ git commit -m "feat: description" --trailer "Co-Authored-By: Hermes <noreply@nou
 
 **Hermes Agent** — оркестратор в экосистеме IWE (РП392). Подключён к Aisystant MCP, работает через CLI/Telegram. Hermes НЕ заменяет Claude Code или Kimi Code в кодинге — он координирует, запоминает и даёт мобильный доступ.
 
-## IWE Instructions Level (Kimi headless)
-
-# IWE workspace with 5000+ docs and multiple Packs — use experienced level.
-# Revisit if a new small repo (< 1000 docs) is added to {{HOME_DIR}}/IWE/.
-When calling `get_instructions` (Aisystant MCP) to load IWE context,
-use `level="experienced"` instead of the default `level="full"`.
-This reduces token load by ~89% (~10K → ~1.1K) on every headless turn.
-
-Example:
-```
-get_instructions(level="experienced")
-```
-
-This applies to all Kimi sessions: peer (via kimi-peer-adapter.sh) and standalone.
-Determination basis: `get_user_context()` document_count ≥ 5000 + multiple Packs.
-
 ## Coordination Protocol (MCP Gateway)
 
-> Для агентов с доступом к Local Gateway (Claude Code, Kimi). Hermes НЕ имеет MCP Gateway
-> (`acquire_file_lock` / `release_file_lock`) — он использует `terminal` + `patch` напрямую,
-> а при конфликте на push сообщает пилоту.
+> Codex и Kimi всегда объявляют работу через `agent_status_update`. Блокировки файлов
+> использовать только когда Local Gateway действительно предоставляет соответствующие
+> инструменты; отсутствие блокировок не должно имитироваться или останавливать локальную работу.
 
 Before starting any edit task:
 
 1. **Declare intention** (no lock needed):
    ```
-   Tool: update_peer_status
-   params: { "status": "working", "current_task": "<brief>", "files": ["relative/path/file.md"] }
+   Tool: agent_status_update
+   params: { "agent": "<codex|kimi>", "status": "working", "task": "<brief>", "files": ["relative/path/file.md"] }
    ```
 
-2. **Acquire lock** before first Edit:
+2. **Acquire lock**, если инструмент доступен, before first Edit:
    ```
    Tool: acquire_file_lock
    param: canonical_file = relative path from IWE root
    ```
 
-3. **Release lock** after commit:
+3. **Release lock**, если он был получен, after commit:
    ```
    Tool: release_file_lock
    ```
