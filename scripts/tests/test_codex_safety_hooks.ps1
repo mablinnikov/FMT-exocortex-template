@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param()
 
 $ErrorActionPreference = 'Stop'
@@ -29,6 +29,82 @@ function Invoke-Hook {
         foreach ($entry in $saved.GetEnumerator()) {
             [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'Process')
         }
+    }
+}
+
+function Invoke-HookAtPath {
+    param(
+        [string]$ScriptPath,
+        [hashtable]$Event,
+        [hashtable]$Environment = @{}
+    )
+
+    $saved = @{}
+    foreach ($entry in $Environment.GetEnumerator()) {
+        $saved[$entry.Key] = [Environment]::GetEnvironmentVariable($entry.Key, 'Process')
+        [Environment]::SetEnvironmentVariable($entry.Key, [string]$entry.Value, 'Process')
+    }
+    try {
+        $json = $Event | ConvertTo-Json -Depth 8 -Compress
+        $output = @($json | & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $ScriptPath 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            throw "$([IO.Path]::GetFileName($ScriptPath)) exited with code $LASTEXITCODE`: $($output -join [Environment]::NewLine)"
+        }
+        return ($output -join [Environment]::NewLine).Trim()
+    } finally {
+        foreach ($entry in $saved.GetEnumerator()) {
+            [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'Process')
+        }
+    }
+}
+
+function New-RefreshFixture {
+    param(
+        [string]$FixtureRoot,
+        [string]$InstallRoot,
+        [string]$Name,
+        [ValidateSet('CleanBehind', 'DirtyBehind', 'Diverged')]
+        [string]$State
+    )
+
+    $remote = Join-Path $FixtureRoot "$Name.git"
+    $seed = Join-Path $FixtureRoot "$Name-seed"
+    $target = Join-Path $InstallRoot $Name
+
+    & git init --bare --quiet --initial-branch=main $remote
+    & git init --quiet --initial-branch=main $seed
+    & git -C $seed config user.email 'test@example.invalid'
+    & git -C $seed config user.name 'Codex session refresh test'
+    Set-Content -LiteralPath (Join-Path $seed 'state.txt') -Value 'initial' -Encoding UTF8
+    & git -C $seed add 'state.txt'
+    & git -C $seed commit --quiet -m 'initial'
+    & git -C $seed remote add origin $remote
+    & git -C $seed push --quiet -u origin main
+    & git clone --quiet $remote $target
+    $before = (& git -C $target rev-parse HEAD).Trim()
+
+    Set-Content -LiteralPath (Join-Path $seed 'state.txt') -Value 'remote update' -Encoding UTF8
+    & git -C $seed add 'state.txt'
+    & git -C $seed commit --quiet -m 'remote update'
+    & git -C $seed push --quiet
+    $remoteHead = (& git -C $seed rev-parse HEAD).Trim()
+
+    if ($State -eq 'DirtyBehind') {
+        Set-Content -LiteralPath (Join-Path $target 'state.txt') -Value 'local dirty change' -Encoding UTF8
+    } elseif ($State -eq 'Diverged') {
+        & git -C $target config user.email 'test@example.invalid'
+        & git -C $target config user.name 'Codex session refresh test'
+        Set-Content -LiteralPath (Join-Path $target 'local.txt') -Value 'local commit' -Encoding UTF8
+        & git -C $target add 'local.txt'
+        & git -C $target commit --quiet -m 'local commit'
+    }
+
+    return [pscustomobject]@{
+        Target = $target
+        Seed = $seed
+        Before = $before
+        LocalHead = (& git -C $target rev-parse HEAD).Trim()
+        RemoteHead = $remoteHead
     }
 }
 
@@ -246,6 +322,7 @@ exit 0
     & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $templateRoot 'setup-codex.ps1') -Workspace $installRoot -RefreshInstructions | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'setup-codex.ps1 -RefreshInstructions failed' }
     $configuration = Get-Content -LiteralPath (Join-Path $installRoot '.codex\hooks.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $sessionStartCommands = @($configuration.hooks.SessionStart | ForEach-Object { $_.hooks } | ForEach-Object { $_.commandWindows })
     $commands = @($configuration.hooks.PreToolUse | ForEach-Object { $_.hooks } | ForEach-Object { $_.commandWindows })
     $postToolCommands = @($configuration.hooks.PostToolUse | ForEach-Object { $_.hooks } | ForEach-Object { $_.commandWindows })
     foreach ($name in @('destructive-guard.ps1', 'destructive-mcp-guard.ps1', 'extensions-gate.ps1', 'dry-run-gate.ps1')) {
@@ -253,8 +330,12 @@ exit 0
         if (-not (Test-Path -LiteralPath (Join-Path $installRoot ".codex\hooks\$name"))) { throw "setup did not copy $name" }
     }
     if (-not ($postToolCommands -match 'memory-exocortex-sync\.ps1')) { throw 'generated hooks.json does not register memory-exocortex-sync.ps1' }
+    if (-not ($sessionStartCommands -match 'session-repo-refresh\.ps1')) { throw 'generated hooks.json does not register session-repo-refresh.ps1' }
+    if ($configuration.hooks.SessionStart[0].matcher -ne 'startup|resume') { throw 'SessionStart matcher is not startup|resume' }
     $installedMemorySync = Join-Path $installRoot '.codex\hooks\memory-exocortex-sync.ps1'
+    $installedSessionRefresh = Join-Path $installRoot '.codex\hooks\session-repo-refresh.ps1'
     if (-not (Test-Path -LiteralPath $installedMemorySync)) { throw 'setup did not copy memory-exocortex-sync.ps1' }
+    if (-not (Test-Path -LiteralPath $installedSessionRefresh)) { throw 'setup did not copy session-repo-refresh.ps1' }
     & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $installedMemorySync
     if ($LASTEXITCODE -ne 0) { throw 'memory-exocortex-sync.ps1 failed' }
     $mirroredMemory = Join-Path $installRoot 'DS-strategy\exocortex\pilot-memory.md'
@@ -275,6 +356,71 @@ exit 0
     if ((Get-Content -LiteralPath $mirroredMemory -Raw -Encoding UTF8) -match 'must not mirror') {
         throw 'memory-exocortex-sync.ps1 wrote during dry-run'
     }
+
+    $fixtureRoot = Join-Path $testRoot 'session-refresh-fixtures'
+    New-Item -ItemType Directory -Path $fixtureRoot -Force | Out-Null
+    $cleanFixture = New-RefreshFixture $fixtureRoot $installRoot 'Repo-clean' 'CleanBehind'
+    $dirtyFixture = New-RefreshFixture $fixtureRoot $installRoot 'Repo-dirty' 'DirtyBehind'
+    $divergedFixture = New-RefreshFixture $fixtureRoot $installRoot 'Repo-diverged' 'Diverged'
+    $noUpstream = Join-Path $installRoot 'Repo-no-upstream'
+    & git init --quiet --initial-branch=main $noUpstream
+    & git -C $noUpstream config user.email 'test@example.invalid'
+    & git -C $noUpstream config user.name 'Codex session refresh test'
+    Set-Content -LiteralPath (Join-Path $noUpstream 'local.txt') -Value 'local only' -Encoding UTF8
+    & git -C $noUpstream add 'local.txt'
+    & git -C $noUpstream commit --quiet -m 'local only'
+
+    $sessionEvent = @{
+        session_id = 'session-refresh-test'
+        cwd = $installRoot
+        hook_event_name = 'SessionStart'
+        source = 'startup'
+        permission_mode = 'default'
+    }
+    $refreshOutput = Invoke-HookAtPath $installedSessionRefresh $sessionEvent
+    $refreshResult = $refreshOutput | ConvertFrom-Json
+    if ((& git -C $cleanFixture.Target rev-parse HEAD).Trim() -ne $cleanFixture.RemoteHead) {
+        throw 'session refresh did not fast-forward a clean behind repository'
+    }
+    if ((& git -C $dirtyFixture.Target rev-parse HEAD).Trim() -ne $dirtyFixture.Before) {
+        throw 'session refresh changed a dirty repository'
+    }
+    if ([string]::IsNullOrWhiteSpace((& git -C $dirtyFixture.Target status --porcelain))) {
+        throw 'session refresh lost dirty working-tree changes'
+    }
+    if ((& git -C $divergedFixture.Target rev-parse HEAD).Trim() -ne $divergedFixture.LocalHead) {
+        throw 'session refresh changed a diverged repository'
+    }
+    foreach ($fixture in @($cleanFixture, $dirtyFixture, $divergedFixture)) {
+        if (-not [string]::IsNullOrWhiteSpace((& git -C $fixture.Target stash list))) {
+            throw "session refresh created a stash in $($fixture.Target)"
+        }
+    }
+    $context = [string]$refreshResult.hookSpecificOutput.additionalContext
+    if ($context -notmatch 'Repo-clean' -or $context -notmatch 'Repo-dirty' -or $context -notmatch 'Repo-diverged') {
+        throw "session refresh did not report observable outcomes: $refreshOutput"
+    }
+
+    Set-Content -LiteralPath (Join-Path $cleanFixture.Seed 'state.txt') -Value 'second remote update' -Encoding UTF8
+    & git -C $cleanFixture.Seed add 'state.txt'
+    & git -C $cleanFixture.Seed commit --quiet -m 'second remote update'
+    & git -C $cleanFixture.Seed push --quiet
+    $headBeforeDryRun = (& git -C $cleanFixture.Target rev-parse HEAD).Trim()
+    $refreshSentinel = Join-Path $testRoot 'session-refresh-dry-run.flag'
+    Set-Content -LiteralPath $refreshSentinel -Value 'active' -Encoding UTF8
+    $dryRunRefreshOutput = Invoke-HookAtPath $installedSessionRefresh $sessionEvent @{ IWE_DRY_RUN_SENTINEL = $refreshSentinel }
+    if ((& git -C $cleanFixture.Target rev-parse HEAD).Trim() -ne $headBeforeDryRun) {
+        throw 'session refresh changed a repository during dry-run'
+    }
+    if ($dryRunRefreshOutput -notmatch 'режим репетиции') {
+        throw "session refresh did not report dry-run skip: $dryRunRefreshOutput"
+    }
+
+    $invalidSessionOutput = Invoke-HookAtPath $installedSessionRefresh @{}
+    if ($invalidSessionOutput -notmatch 'обязательные поля') {
+        throw "session refresh did not fail open with an observable warning for invalid input: $invalidSessionOutput"
+    }
+
     if ($commands -match 'protocol-artifact-validate') { throw 'protocol validator must not be registered as a Codex hook' }
     if (-not (Test-Path -LiteralPath (Join-Path $installHooks 'protocol-artifact-validate.py'))) { throw 'setup did not install the Git validator' }
     $installedPreCommit = Get-Content -LiteralPath (Join-Path $installHooks 'pre-commit') -Raw -Encoding UTF8

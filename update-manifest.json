@@ -628,6 +628,10 @@
       "sha256": "4c1f4c13c2115770aa2617d9ad08245dd2530af68b8c7a53d68ea9eeda915107"
     },
     {
+      "path": ".codex/hooks/session-repo-refresh.ps1",
+      "sha256": "9c532073dc73a3591234980a3c85df4276c0e5d713997784dd9d94d12d5ad9d4"
+    },
+    {
       "path": ".githooks/commit-msg",
       "sha256": "f8507693252517c89deb4b963cdd499aa570dbba6663cb62a2ca4db1f8e2f6b9"
     },
@@ -2629,7 +2633,7 @@
     },
     {
       "path": "setup-codex.ps1",
-      "sha256": "36eb4f6f32724e4d8393b3d8f83c639d376eca4d978a835c70af9d69445661f6"
+      "sha256": "26cae6e8d12167beb4d708967630e22f77dab574a82b92e3f676771a54d740b0"
     },
     {
       "path": "setup.sh",

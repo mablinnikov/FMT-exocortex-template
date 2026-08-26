@@ -112,13 +112,17 @@ function Write-CodexSkill {
 }
 
 function New-CodexHookHandler {
-    param([string]$ScriptPath, [string]$StatusMessage)
+    param(
+        [string]$ScriptPath,
+        [string]$StatusMessage,
+        [int]$Timeout = 15
+    )
     $command = 'powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $ScriptPath + '"'
     return [ordered]@{
         type = 'command'
         command = $command
         commandWindows = $command
-        timeout = 15
+        timeout = $Timeout
         statusMessage = $StatusMessage
     }
 }
@@ -131,7 +135,8 @@ function Install-CodexHooks {
         'destructive-mcp-guard.ps1',
         'extensions-gate.ps1',
         'dry-run-gate.ps1',
-        'memory-exocortex-sync.ps1'
+        'memory-exocortex-sync.ps1',
+        'session-repo-refresh.ps1'
     )
 
     Ensure-Directory $targetDir
@@ -155,10 +160,17 @@ function Install-CodexHooks {
     $extensionsGate = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'extensions-gate.ps1') -StatusMessage 'Проверка слоя файла'
     $destructiveMcpGuard = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'destructive-mcp-guard.ps1') -StatusMessage 'Проверка безопасности MCP-вызова'
     $memorySync = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'memory-exocortex-sync.ps1') -StatusMessage 'Синхронизация памяти с экзокортексом'
+    $sessionRepoRefresh = New-CodexHookHandler -ScriptPath (Join-Path $targetDir 'session-repo-refresh.ps1') -StatusMessage 'Безопасное обновление репозиториев' -Timeout 120
 
     $configuration = [ordered]@{
-        description = 'Native Codex safety hooks installed by setup-codex.ps1.'
+        description = 'Native Codex lifecycle hooks installed by setup-codex.ps1.'
         hooks = [ordered]@{
+            SessionStart = @(
+                [ordered]@{
+                    matcher = 'startup|resume'
+                    hooks = @($sessionRepoRefresh)
+                }
+            )
             PreToolUse = @(
                 [ordered]@{
                     matcher = '^Bash$'
@@ -267,6 +279,7 @@ function Test-Installation {
         '.codex\hooks\extensions-gate.ps1',
         '.codex\hooks\dry-run-gate.ps1',
         '.codex\hooks\memory-exocortex-sync.ps1',
+        '.codex\hooks\session-repo-refresh.ps1',
         'DS-strategy\.githooks\protocol-artifact-validate.py'
     )
 
@@ -296,6 +309,7 @@ function Test-Installation {
     if (Test-Path -LiteralPath $hooksPath) {
         try {
             $hooksConfig = Get-Content -LiteralPath $hooksPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if (-not $hooksConfig.hooks.SessionStart) { throw 'SessionStart is missing' }
             if (-not $hooksConfig.hooks.PreToolUse) { throw 'PreToolUse is missing' }
             Write-Host '  OK  Codex hooks generated and configured' -ForegroundColor Green
             Write-Host '  NOTE hook trust is user-managed; review changed hooks with /hooks' -ForegroundColor Yellow
