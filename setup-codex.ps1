@@ -3,7 +3,8 @@ param(
     [string]$Workspace = (Split-Path -Parent $PSScriptRoot),
     [string]$GitHubUser = "",
     [switch]$Validate,
-    [switch]$RefreshInstructions
+    [switch]$RefreshInstructions,
+    [switch]$PrepareStrategist
 )
 
 Set-StrictMode -Version Latest
@@ -31,18 +32,15 @@ function Resolve-GitHubUser {
     return "your-github-user"
 }
 
-function Resolve-AgentCli {
-    # strategist.sh drives the CLI with Claude Code's own flags (--allowedTools,
-    # --model, -p), which codex rejects with exit 2 -- so claude wins when both are
-    # installed. Returned as an msys path: the value lands in .exocortex.env, which
-    # Git Bash sources.
+function Resolve-CodexCli {
+    # setup-codex installs the Codex adapter, so its generated runtime must prefer
+    # Codex even when a legacy Claude CLI is also present. Returned as an msys path.
     $candidates = @(
-        (Join-Path $env:APPDATA "npm\claude"),
-        (Join-Path $env:USERPROFILE ".local\bin\claude"),
-        (Join-Path $env:APPDATA "npm\codex")
+        (Join-Path $env:APPDATA "npm\codex"),
+        (Join-Path $env:USERPROFILE ".local\bin\codex")
     )
     $found = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-    if (-not $found) { return "claude" }
+    if (-not $found) { return "codex" }
     $full = [System.IO.Path]::GetFullPath($found)
     $drive = $full.Substring(0, 1).ToLowerInvariant()
     return "/$drive" + ($full.Substring(2) -replace '\\', '/')
@@ -57,7 +55,8 @@ function Expand-IwePlaceholders {
         '{{GITHUB_USER}}'         = (Resolve-GitHubUser)
         '{{WORKSPACE_DIR}}'       = $Workspace
         '{{HOME_DIR}}'            = $homeDir
-        '{{CLAUDE_PATH}}'         = (Resolve-AgentCli)
+        '{{CLAUDE_PATH}}'         = 'claude'
+        '{{CODEX_PATH}}'          = (Resolve-CodexCli)
         '{{CLAUDE_PROJECT_SLUG}}' = $slug
         '{{TIMEZONE_HOUR}}'       = '21'
         '{{TIMEZONE_DESC}}'       = '08:00 Asia/Sakhalin (UTC+11)'
@@ -83,6 +82,53 @@ function Convert-ToCodexAgentInstructions {
         '> Канонический источник → `FMT-exocortex-template/memory/reference/agent-core.md`. Агент-специфика → `FMT-exocortex-template/AGENTS-agent-blocks.md`.'
     )
     return $Text
+}
+
+function Convert-ToMsysPath {
+    param([string]$Path)
+    $full = [System.IO.Path]::GetFullPath($Path)
+    $drive = $full.Substring(0, 1).ToLowerInvariant()
+    return "/$drive" + ($full.Substring(2) -replace '\\', '/')
+}
+
+function Prepare-StrategistRuntime {
+    $envFile = Join-Path $Workspace '.exocortex.env'
+    if (-not (Test-Path -LiteralPath $envFile)) {
+        throw "Strategist runtime config not found: $envFile"
+    }
+
+    $codexPath = Resolve-CodexCli
+    if ($codexPath -eq 'codex') {
+        throw 'Codex CLI not found. Install Codex before preparing Strategist runtime.'
+    }
+
+    $envText = Get-Content -LiteralPath $envFile -Raw -Encoding UTF8
+    $line = 'CODEX_PATH="' + $codexPath + '"'
+    if ($envText -match '(?m)^CODEX_PATH=.*$') {
+        $updated = [regex]::Replace($envText, '(?m)^CODEX_PATH=.*$', $line, 1)
+    } else {
+        $updated = $envText.TrimEnd() + [Environment]::NewLine + $line + [Environment]::NewLine
+    }
+
+    $bashPath = @(
+        'C:\Program Files\Git\bin\bash.exe',
+        'C:\Program Files\Git\usr\bin\bash.exe'
+    ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $bashPath) { throw 'Git Bash not found; cannot build Strategist runtime.' }
+
+    if ($PSCmdlet.ShouldProcess($envFile, 'Point legacy runtime slot to Codex and rebuild .iwe-runtime')) {
+        if ($updated -cne $envText) {
+            Write-Utf8File -Path $envFile -Content $updated
+        }
+        $buildScript = Convert-ToMsysPath (Join-Path $TemplateDir 'setup\build-runtime.sh')
+        $workspaceMsys = Convert-ToMsysPath $Workspace
+        $envMsys = Convert-ToMsysPath $envFile
+        & $bashPath $buildScript '--workspace' $workspaceMsys '--env-file' $envMsys
+        if ($LASTEXITCODE -ne 0) {
+            throw "Strategist runtime build failed with exit code $LASTEXITCODE"
+        }
+        Write-Host 'Strategist runtime prepared for Codex. Scheduled Tasks were not changed.' -ForegroundColor Green
+    }
 }
 
 function Ensure-Directory {
@@ -365,9 +411,22 @@ function Test-Installation {
         }
     }
 
+    # Validate executable/generated DS files, not user history and exocortex
+    # backups where placeholder examples are legitimate content.
     $strategyDir = Join-Path $Workspace 'DS-strategy'
-    $unresolved = @(Get-ChildItem -LiteralPath $strategyDir -Recurse -File |
-        Where-Object { $_.Extension -in @('.md', '.yaml', '.yml', '.json', '.sh', '.txt') } |
+    $strategyValidationFiles = @()
+    $strategyAgents = Join-Path $strategyDir 'AGENTS.md'
+    if (Test-Path -LiteralPath $strategyAgents) {
+        $strategyValidationFiles += Get-Item -LiteralPath $strategyAgents
+    }
+    foreach ($relativeDir in @('scripts', '.githooks')) {
+        $scanDir = Join-Path $strategyDir $relativeDir
+        if (Test-Path -LiteralPath $scanDir) {
+            $strategyValidationFiles += Get-ChildItem -LiteralPath $scanDir -Recurse -File |
+                Where-Object { $_.Extension -in @('.md', '.yaml', '.yml', '.json', '.sh', '.py', '.txt') }
+        }
+    }
+    $unresolved = @($strategyValidationFiles |
         Select-String -Pattern '\{\{(WORKSPACE_DIR|HOME_DIR|GITHUB_USER|GOVERNANCE_REPO|IWE_TEMPLATE)\}\}')
     if ($unresolved.Count -gt 0) {
         Write-Host "  ERR DS-strategy contains $($unresolved.Count) unresolved critical placeholder(s)" -ForegroundColor Red
@@ -404,6 +463,11 @@ if ($RefreshInstructions) {
     exit 0
 }
 
+if ($PrepareStrategist) {
+    Prepare-StrategistRuntime
+    exit 0
+}
+
 Write-Host "Installing IWE for Codex"
 Write-Host "  Template:  $TemplateDir"
 Write-Host "  Workspace: $Workspace"
@@ -433,19 +497,23 @@ if (-not (Test-Path -LiteralPath $paramsTarget)) {
 }
 
 $strategyDir = Join-Path $Workspace 'DS-strategy'
+$strategyCreated = $false
 if (-not (Test-Path -LiteralPath $strategyDir)) {
     Copy-Item -LiteralPath (Join-Path $TemplateDir 'seed\strategy') -Destination $strategyDir -Recurse
+    $strategyCreated = $true
 }
 
-Get-ChildItem -LiteralPath $strategyDir -Recurse -File |
-    Where-Object { $_.Extension -in @('.md', '.yaml', '.yml', '.json', '.sh', '.txt') } |
-    ForEach-Object {
-        $text = Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8
-        $expanded = Expand-IwePlaceholders $text
-        if ($expanded -ne $text) {
-            Write-Utf8File -Path $_.FullName -Content $expanded
+if ($strategyCreated) {
+    Get-ChildItem -LiteralPath $strategyDir -Recurse -File |
+        Where-Object { $_.Extension -in @('.md', '.yaml', '.yml', '.json', '.sh', '.txt') } |
+        ForEach-Object {
+            $text = Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8
+            $expanded = Expand-IwePlaceholders $text
+            if ($expanded -ne $text) {
+                Write-Utf8File -Path $_.FullName -Content $expanded
+            }
         }
-    }
+}
 
 $strategyAgents = @'
 # DS-strategy guidance for Codex

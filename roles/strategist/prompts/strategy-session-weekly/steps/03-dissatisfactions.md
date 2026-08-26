@@ -14,7 +14,7 @@ gate: user
 | **Действие** | Закрыть разрешённые НЭП, обсудить новые, обновить Dissatisfactions.md |
 | **Выход** | Актуализированный Dissatisfactions.md, решения по новым НЭП |
 
-## Инструкция для Claude
+## Инструкция для Codex
 
 1. **Прочитать** `docs/Dissatisfactions.md`
 

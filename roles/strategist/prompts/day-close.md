@@ -10,7 +10,7 @@
 ## Контекст
 
 - **WeekPlan:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/current/WeekPlan W*.md (последний по дате)
-- **MEMORY:** ~/.claude/projects/{{CLAUDE_PROJECT_SLUG}}/memory/MEMORY.md
+- **MEMORY:** {{WORKSPACE_DIR}}/memory/MEMORY.md
 - **Exocortex backup:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/exocortex/
 
 ## Алгоритм
@@ -49,18 +49,17 @@ git -C {{WORKSPACE_DIR}}/<repo> log --since="today 00:00" --oneline --no-merges
 Скопируй актуальные файлы в `{{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/exocortex/`:
 
 ```bash
-# Корневой CLAUDE.md
-cp {{WORKSPACE_DIR}}/CLAUDE.md {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/exocortex/CLAUDE.md
+# Корневой AGENTS.md
+cp {{WORKSPACE_DIR}}/AGENTS.md {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/exocortex/AGENTS.md
 
-# Memory (Слой 3)
-cp ~/.claude/projects/{{CLAUDE_PROJECT_SLUG}}/memory/MEMORY.md {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/exocortex/MEMORY.md
-cp ~/.claude/projects/{{CLAUDE_PROJECT_SLUG}}/memory/*.md {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/exocortex/
+# Физическая память workspace
+cp {{WORKSPACE_DIR}}/memory/MEMORY.md {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/exocortex/MEMORY.md
 ```
 
 ### 5. Закоммитить
 
-- Закоммить все изменения в `{{GOVERNANCE_REPO}}` (WeekPlan + exocortex backup)
-- Запуши
+- Закоммить только изменённые файлы `{{GOVERNANCE_REPO}}` (WeekPlan + exocortex backup)
+- Не выполняй push, pull --rebase или stash; внешняя синхронизация остаётся ручной
 
 ## Правила
 
@@ -82,7 +81,7 @@ cp ~/.claude/projects/{{CLAUDE_PROJECT_SLUG}}/memory/*.md {{WORKSPACE_DIR}}/{{GO
 
 MEMORY.md: синхронизирован ✅
 Exocortex backup: скопирован ✅
-Git: закоммичен и запушен ✅
+Git: создан локальный коммит ✅
 ```
 
 Результат: обновлённый WeekPlan + MEMORY.md + backup экзокортекса.

@@ -4,7 +4,7 @@
 # active-wp-sweep.sh — heartbeat sweep активных РП
 # see WP-283 Шаг E (${IWE_GOVERNANCE_REPO:-DS-strategy}/inbox/WP-283-server-day-open-crossplatform.md)
 #
-# Обходит ${IWE_GOVERNANCE_REPO:-DS-strategy}/inbox/WP-*.md, находит файлы с status: in_progress | active | awaiting-batch,
+# Обходит ${IWE_GOVERNANCE_REPO:-DS-strategy}/inbox/WP-*/WP-*.md (и legacy flat-файлы), находит status: in_progress | active | awaiting-batch,
 # плюс union с WP-IDs из текущего WeekPlan (для pending-РП, которые в плане недели),
 # кросс-чекает с git activity, выводит markdown-таблицу кандидатов.
 #
@@ -239,7 +239,7 @@ fi
 
 if [[ $FOUND -gt 0 ]]; then
   echo ""
-  echo "### 🔄 Активные РП (sweep по inbox/WP-*.md)"
+  echo "### 🔄 Активные РП (sweep по inbox/WP-*/WP-*.md)"
   echo ""
   echo "| РП | Последний коммит (${GIT_DAYS}д) |"
   echo "|----|---------------------------------|"

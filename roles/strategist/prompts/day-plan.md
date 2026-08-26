@@ -12,7 +12,7 @@ DAYPLAN_FILE="$_IWE/{{GOVERNANCE_REPO}}/current/DayPlan $DATE.md"
 
 # Если файла нет — создать через scaffold (если доступен)
 if [ ! -f "$DAYPLAN_FILE" ]; then
-  _SCAFFOLD="$_IWE/scripts/day-open-scaffold.sh"
+  _SCAFFOLD="$_IWE/{{GOVERNANCE_REPO}}/scripts/day-open-scaffold.sh"
   if [ -f "$_SCAFFOLD" ]; then
     bash "$_SCAFFOLD" "$DATE" > "$DAYPLAN_FILE"
     SCAFFOLD_EXIT=$?
@@ -42,7 +42,7 @@ fi
 
 1. **План на сегодня (today_plan)** — синтез из:
    - `{{GOVERNANCE_REPO}}/current/WeekPlan W{N}.md` (текущий план недели)
-   - `{{GOVERNANCE_REPO}}/inbox/WP-*.md` (контекстные файлы РП с `status: active`)
+   - `{{GOVERNANCE_REPO}}/inbox/WP-*/WP-*.md` (контекстные файлы открытых РП)
    - Carry-over из вчерашнего DayPlan (секция «Завтра начать с»)
    - `day-rhythm-config.yaml → mandatory_daily_wps` (обязательные)
    - Budget spread по дням до конца недели
@@ -88,38 +88,38 @@ fi
    - Если есть — классифицировать по 7 категориям (НЭП / Задача / Знание / Черновик / Личные / Шум).
    - НЕ помечать заметки и НЕ архивировать (это делает Note-Review в 23:00).
 
-### Шаг 7 — сохранение и коммит
+### Шаг 7 — сохранение и локальный коммит
 
 ```bash
 cd "${IWE_WORKSPACE:-$HOME/IWE}/{{GOVERNANCE_REPO}}"
-git add current/DayPlan*.md
+git add -- "current/DayPlan $DATE.md"
 git commit -m "day-plan: $DATE автономный полный (strategist morning)"
-git pull --rebase  # на случай если Mac тоже что-то закоммитил
-git push
 ```
+
+Если в репозитории уже есть посторонние незакоммиченные изменения, не включай их в commit. `git push`, `pull --rebase`, stash и изменение расписания запрещены: внешнюю синхронизацию пользователь выполняет отдельно.
 
 ## АВТОНОМНЫЙ РЕЖИМ (БЛОКИРУЮЩЕЕ)
 
 - ❌ **НЕ задавать вопросов** «что от меня нужно?» / «вариант A/B/C?»
 - ❌ **НЕ останавливаться** если файл DayPlan уже существует — заполни PENDING секции (не пересоздавай)
 - ❌ **НЕ просить подтверждения** — все решения по алгоритму
-- ✅ Все решения принимай по skill /day-open (`${IWE_WORKSPACE:-{{WORKSPACE_DIR}}}/.claude/skills/day-open/SKILL.md`)
-- ✅ Финал: SUCCESS + git push (Telegram-уведомление отправляет strategist.sh автоматически после завершения)
+- ✅ Все решения принимай по `memory/protocol-open.md` и `.agents/skills/iwe-day-open/SKILL.md`
+- ✅ Финал: SUCCESS + локальный commit либо явное объяснение, почему commit не нужен
 
-## Источники (на сервере tsekh-1)
+## Источники
 
 - HUB: `{{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/current/`
 - SPOKES: `{{WORKSPACE_DIR}}/*/WORKPLAN.md`
-- MEMORY: `~/.claude/projects/{{CLAUDE_PROJECT_SLUG}}/memory/`
-- Skill: `{{WORKSPACE_DIR}}/.claude/skills/day-open/SKILL.md`
-- Templates: `~/.claude/projects/{{CLAUDE_PROJECT_SLUG}}/memory/templates-dayplan.md`
-- Scaffold: `{{WORKSPACE_DIR}}/scripts/day-open-scaffold.sh`
+- MEMORY: `{{WORKSPACE_DIR}}/memory/`
+- Skill: `{{WORKSPACE_DIR}}/.agents/skills/iwe-day-open/SKILL.md`
+- Templates: `{{WORKSPACE_DIR}}/memory/templates-dayplan.md`
+- Scaffold: `{{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/scripts/day-open-scaffold.sh`
 - Extensions: `{{WORKSPACE_DIR}}/extensions/day-open.before.md`, `.after.md`, `.checks.md`
 
 ## Если что-то отсутствует
 
 - Файлы или репо нет → log warning, продолжай с тем что есть. НЕ падай.
-- Calendar: на сервере его нет (Mac-only). Секцию пометь «Календарь недоступен на сервере».
+- Calendar: если интеграция не настроена, секцию пометь «Календарь недоступен».
 - Видео: если scaffold нашёл 0 файлов — секция «нет новых видео сегодня».
 
-Результат: DayPlan в `current/` с заполненными PENDING-секциями, закоммичен и запушен.
+Результат: DayPlan в `current/` с заполненными PENDING-секциями и изолированным локальным коммитом.

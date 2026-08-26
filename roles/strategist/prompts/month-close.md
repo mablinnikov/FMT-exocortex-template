@@ -1,6 +1,6 @@
 Выполни сценарий Month Close для роли Стратег (R1).
 
-> **Триггер:** Автоматический — первый понедельник месяца, 00:00 (launchd) или по запросу пользователя.
+> **Триггер:** Автоматический — первый понедельник месяца, 00:00 (системное расписание) или по запросу пользователя.
 > **Вход:** WeekPlans месяца + MEMORY.md + Strategy.md + Dissatisfactions.md.
 > **Выход:** Обновлённый Strategy.md (архивация фокуса месяца) + новые R1-R6 + отчёт Month Close.
 
@@ -16,7 +16,7 @@
 
 ```bash
 # Проверить наличие skill
-SKILL="${IWE_WORKSPACE:-$HOME/IWE}/.claude/skills/month-close/SKILL.md"
+SKILL="${IWE_WORKSPACE:-$HOME/IWE}/.agents/skills/month-close/SKILL.md"
 if [ -f "$SKILL" ]; then
   # Делегировать выполнение skill /month-close
   echo "Делегирую в skills/month-close/SKILL.md"
@@ -63,7 +63,7 @@ Git: закоммичен и запушен ✅
 
 ## Источники
 
-- **Skill (primary):** `{{WORKSPACE_DIR}}/.claude/skills/month-close/SKILL.md`
+- **Skill (primary):** `{{WORKSPACE_DIR}}/.agents/skills/month-close/SKILL.md`
 - **WeekPlans:** `{{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/archive/week-plans/WeekPlan W*.md`
 - **Strategy:** `{{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/docs/Strategy.md`
 - **MEMORY:** `{{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/memory/MEMORY.md`

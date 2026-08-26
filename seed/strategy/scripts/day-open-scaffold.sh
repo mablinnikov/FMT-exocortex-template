@@ -1426,22 +1426,11 @@ $(render_ke_candidates)
 $(render_gate_metrics)
 
 <details>
-<summary><b>Авторская очистка базы знаний</b></summary>
+<summary><b>Пользовательская очистка базы знаний</b></summary>
 
 $(render_content_cleanup)
 
 </details>
-
-</details>
-
-<details>
-<summary><b>Контент-план</b></summary>
-
-**Стратегия:** <!-- PENDING: 1 строка из Strategy.md (пример: club → Telegram → Дзен/Habr, N постов/нед) -->
-**TTL просрочены:** <!-- PENDING: D-NNN (истёк YYYY-MM-DD), ... или «нет просроченных» -->
-**TTL скоро:** <!-- PENDING: D-NNN (истекает YYYY-MM-DD, через N дн), ... или «нет» -->
-
-<!-- PENDING: content — таблица 1-3 тем из плана публикаций W{N}. Источник: WeekPlan или Strategy.md. -->
 
 </details>
 

@@ -342,6 +342,61 @@ if [[ "$MODE" == "all" && ${#FILES[@]} -eq 0 ]]; then
             errors=$((errors + 1))
         fi
     done
+
+    protocol_work="$FMT_ROOT/memory/protocol-work.md"
+    if grep -qF '../../Github/PACK-digital-platform/' "$protocol_work"; then
+        echo "  ❌ protocol-work: services-map снова зависит от фиксированного внешнего пути" >&2
+        errors=$((errors + 1))
+    fi
+    for invariant in \
+        'Не предполагай фиксированный путь к Pack' \
+        'Отсутствие необязательного Pack не блокирует работу'; do
+        if ! grep -qF "$invariant" "$protocol_work"; then
+            echo "  ❌ protocol-work: отсутствует деградация services-map: $invariant" >&2
+            errors=$((errors + 1))
+        fi
+    done
+
+    strategist_runner="$FMT_ROOT/roles/strategist/scripts/strategist.sh"
+    for invariant in \
+        'exec --approve-for-me --ephemeral' \
+        'SUBSTITUTED_CODEX_PATH="{{CODEX_PATH}}"' \
+        'IWE_STRATEGIST_DRY_RUN' \
+        'IWE_STRATEGIST_NOTIFY' \
+        'scheduled Strategist never pushes automatically'; do
+        if ! grep -qF "$invariant" "$strategist_runner"; then
+            echo "  ❌ Strategist: отсутствует инвариант Codex runtime: $invariant" >&2
+            errors=$((errors + 1))
+        fi
+    done
+    forbidden_strategist=$(grep -nE 'resolve_claude|CLAUDE_CLI_PATH|--allowedTools|git[[:space:]]+-C.*[[:space:]]push|git[[:space:]]+-C.*pull[[:space:]]+--rebase|git[[:space:]]+-C.*reset[[:space:]]+--quiet' "$strategist_runner" || true)
+    if [[ -n "$forbidden_strategist" ]]; then
+        echo "  ❌ Strategist: найдена Claude-ветка или автоматическая внешняя синхронизация" >&2
+        echo "$forbidden_strategist" | head -5 | sed 's/^/     /' >&2
+        errors=$((errors + 1))
+    fi
+
+    windows_tasks="$FMT_ROOT/setup/install-windows-tasks.ps1"
+    for invariant in \
+        '[string]$CodexCliPath' \
+        '[string]$WeekReviewDay = "Saturday"' \
+        '[string]$WeekReviewTime = "11:00"' \
+        "export CODEX_CLI_PATH='" \
+        'IWE_STRATEGIST_NOTIFY=false' \
+        'IWE Strategist (R1, Codex)'; do
+        if ! grep -qF "$invariant" "$windows_tasks"; then
+            echo "  ❌ Windows Strategist: отсутствует Codex-инвариант: $invariant" >&2
+            errors=$((errors + 1))
+        fi
+    done
+
+    week_review="$FMT_ROOT/roles/strategist/prompts/week-review.md"
+    forbidden_week_review=$(grep -nEi 'Habr|LinkedIn|target:[[:space:]]*club|пост для клуба|контент-план' "$week_review" || true)
+    if [[ -n "$forbidden_week_review" ]]; then
+        echo "  ❌ Week Review: найден удалённый авторский публикационный контур" >&2
+        echo "$forbidden_week_review" | head -5 | sed 's/^/     /' >&2
+        errors=$((errors + 1))
+    fi
 fi
 
 if [[ $errors -eq 0 ]]; then

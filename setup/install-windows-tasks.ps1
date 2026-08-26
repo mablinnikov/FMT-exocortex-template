@@ -30,10 +30,10 @@ param(
     [string]$Workspace = "",
     [string]$MorningTime = "07:00",
     [ValidateSet("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")]
-    [string]$WeekReviewDay = "Monday",
-    [string]$WeekReviewTime = "00:00",
+    [string]$WeekReviewDay = "Saturday",
+    [string]$WeekReviewTime = "11:00",
     [string]$BashPath = "C:\Program Files\Git\bin\bash.exe",
-    [string]$ClaudeCliPath = "",
+    [string]$CodexCliPath = "",
     [switch]$Remove
 )
 
@@ -97,32 +97,39 @@ if (-not (Test-Path -LiteralPath $BashPath)) {
     throw "Git Bash not found: $BashPath`nPass -BashPath with the correct location."
 }
 
-# The runner aborts with exit 127 unless it can resolve a CLI, and Task Scheduler
-# does not run a login shell, so PATH cannot be relied on -- hand it the resolved
-# binary explicitly. claude comes first: strategist.sh drives the CLI with Claude
-# Code's own flags (--allowedTools, --model, -p), which codex rejects outright.
-if (-not $ClaudeCliPath) {
+if (-not $CodexCliPath) {
     $candidates = @(
-        (Join-Path $env:APPDATA "npm\claude"),
-        (Join-Path $env:USERPROFILE ".local\bin\claude"),
-        (Join-Path $env:APPDATA "npm\codex")
+        (Join-Path $env:APPDATA "npm\codex"),
+        (Join-Path $env:USERPROFILE ".local\bin\codex")
     )
-    $ClaudeCliPath = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    $CodexCliPath = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 }
-if (-not $ClaudeCliPath) {
-    throw "No agent CLI found (looked for claude, then codex). Pass -ClaudeCliPath explicitly."
+if (-not $CodexCliPath) {
+    throw "Codex CLI not found. Pass -CodexCliPath explicitly."
 }
 
 $wsMsys = ConvertTo-MsysPath $Workspace
-$cliMsys = ConvertTo-MsysPath $ClaudeCliPath
+$cliMsys = ConvertTo-MsysPath $CodexCliPath
 
 Write-Host "=== install-windows-tasks ==="
 Write-Host "  Workspace:  $Workspace"
 Write-Host "  Runner:     $runtimeScript"
-Write-Host "  Agent CLI:  $ClaudeCliPath"
+Write-Host "  Agent:      Codex"
+Write-Host "  Agent CLI:  $CodexCliPath"
 Write-Host "  Morning:    daily $MorningTime (local)"
 Write-Host "  WeekReview: $WeekReviewDay $WeekReviewTime (local)"
 Write-Host ""
+
+# Task Scheduler cmdlets contact the Windows service even when their result is
+# used only to build an object. In restricted Codex sessions that can emit
+# Access denied before ShouldProcess sees -WhatIf. Keep rehearsal deterministic
+# and completely service-free.
+if ($WhatIfPreference) {
+    Write-Host "What if: register $TaskFolder\Strategist Morning -> morning at $MorningTime daily"
+    Write-Host "What if: register $TaskFolder\Strategist WeekReview -> week-review at $WeekReviewTime on $WeekReviewDay"
+    Write-Host "No Scheduled Tasks were changed."
+    return
+}
 
 # --- Registration ------------------------------------------------------------
 
@@ -143,15 +150,8 @@ foreach ($entry in $Tasks.GetEnumerator()) {
     # strategist.sh needs to locate the workspace, and without which it would fall
     # back to $HOME/IWE and operate on a directory that does not exist here.
     #
-    # The secrets file is sourced only if present, and the `|| true` keeps a missing
-    # or unreadable file from breaking the && chain -- the run should reach the CLI
-    # and fail there with a legible auth error, not die silently in the wrapper.
-    # It carries ANTHROPIC_API_KEY: claude.ai returns 403 from this egress, so the
-    # OAuth login flow is unavailable and key auth against api.anthropic.com (which
-    # answers 401, i.e. reachable, not country-blocked) is the way in.
     $inner = "source '$wsMsys/.iwe-paths' && " +
-             "{ [ -f '$wsMsys/.secrets/anthropic_key.env' ] && set -a && . '$wsMsys/.secrets/anthropic_key.env' && set +a || true; } && " +
-             "export CLAUDE_CLI_PATH='$cliMsys' && " +
+             "export CODEX_CLI_PATH='$cliMsys' IWE_STRATEGIST_NOTIFY=false && " +
              "exec `"`$IWE_RUNTIME/roles/strategist/scripts/strategist.sh`" $scenario"
     $argument = '-l -c "' + $inner.Replace('"', '\"') + '"'
 
@@ -170,7 +170,7 @@ foreach ($entry in $Tasks.GetEnumerator()) {
         }
         Register-ScheduledTask -TaskName $name -TaskPath $TaskFolder `
             -Action $action -Trigger $trigger -Principal $principal -Settings $settings `
-            -Description "IWE Strategist (R1): $scenario" | Out-Null
+            -Description "IWE Strategist (R1, Codex): $scenario" | Out-Null
         Write-Host "  + $name -> strategist.sh $scenario"
     }
 }

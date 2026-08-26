@@ -1,6 +1,7 @@
 #!/bin/bash
+# see DP.ROLE.001
 # Strategist (Стратег) Agent Runner
-# Запускает Claude Code с заданным сценарием
+# Запускает существующие сценарии Стратега через Codex CLI.
 
 set -e
 
@@ -62,24 +63,27 @@ else
     echo "[$(date '+%H:%M:%S')] WARN: legacy PROMPTS_DIR fallback на $PROMPTS_DIR (pre-WP-273). Запустите migrate-to-runtime-target.sh." >&2
 fi
 
-LOG_DIR="$HOME/logs/strategist"
-# На Mac: build-runtime подставляет {{CLAUDE_PATH}}. На сервере — резолв через env/PATH/known paths.
-if [ -n "${CLAUDE_CLI_PATH:-}" ]; then
-    CLAUDE_PATH="$CLAUDE_CLI_PATH"
-elif command -v claude &>/dev/null; then
-    CLAUDE_PATH="$(command -v claude)"
-elif [ -x "$HOME/.local/bin/claude" ]; then
-    CLAUDE_PATH="$HOME/.local/bin/claude"
-elif [ -x "$HOME/.npm-global/bin/claude" ]; then
-    CLAUDE_PATH="$HOME/.npm-global/bin/claude"
+LOG_DIR="${IWE_STRATEGIST_LOG_DIR:-$HOME/logs/strategist}"
+
+# CODEX_CLI_PATH имеет приоритет над значением из сгенерированного runtime.
+SUBSTITUTED_CODEX_PATH="{{CODEX_PATH}}"
+if [ -n "${CODEX_CLI_PATH:-}" ] && [ -x "$CODEX_CLI_PATH" ]; then
+    CODEX_PATH="$CODEX_CLI_PATH"
+elif command -v codex >/dev/null 2>&1; then
+    CODEX_PATH="$(command -v codex)"
+elif [ -x "$SUBSTITUTED_CODEX_PATH" ]; then
+    CODEX_PATH="$SUBSTITUTED_CODEX_PATH"
 else
-    CLAUDE_PATH="{{CLAUDE_PATH}}"  # fallback: build-runtime должен был подставить
+    CODEX_PATH=""
 fi
-if [ ! -x "$CLAUDE_PATH" ]; then
-    echo "[$(date '+%H:%M:%S')] ERROR: claude CLI не найден (CLAUDE_CLI_PATH/PATH/~/.local/bin/~/.npm-global/fallback='$CLAUDE_PATH')." >&2
+
+if [ -z "$CODEX_PATH" ] || [ ! -x "$CODEX_PATH" ]; then
+    echo "[$(date '+%H:%M:%S')] ERROR: Codex CLI не найден. Задайте CODEX_CLI_PATH." >&2
     exit 127
 fi
-CLAUDE_TIMEOUT=1800  # 30 мин — защита от зависания Claude CLI
+AGENT_TIMEOUT="${IWE_STRATEGIST_TIMEOUT:-1800}"  # 30 мин по умолчанию
+DRY_RUN="${IWE_STRATEGIST_DRY_RUN:-false}"
+NOTIFY_ENABLED="${IWE_STRATEGIST_NOTIFY:-false}"
 
 # macOS не имеет GNU timeout — используем perl fallback
 if ! command -v timeout &>/dev/null; then
@@ -120,6 +124,7 @@ log() {
 notify() {
     local title="$1"
     local message="$2"
+    [ "$NOTIFY_ENABLED" = "true" ] || return 0
     printf 'display notification "%s" with title "%s"' "$message" "$title" | osascript 2>/dev/null \
         || notify-send "$title" "$message" 2>/dev/null \
         || true
@@ -127,6 +132,7 @@ notify() {
 
 notify_telegram() {
     local scenario="$1"
+    [ "$NOTIFY_ENABLED" = "true" ] || return 0
     # WP-273 R5: notify.sh — read-only из FMT, не substituted (нет плейсхолдеров).
     local notify_script
     if [ -n "${IWE_TEMPLATE:-}" ] && [ -f "$IWE_TEMPLATE/roles/synchronizer/scripts/notify.sh" ]; then
@@ -139,7 +145,7 @@ notify_telegram() {
     [ -f "$notify_script" ] && "$notify_script" strategist "$scenario" >> "$LOG_FILE" 2>&1 || true
 }
 
-run_claude() {
+run_agent() {
     local command_file="$1"
     # Опциональная модель: IWE_STRATEGIST_MODEL из env или второй аргумент.
     # Приоритет env выше аргумента: раньше было наоборот, а модель передают
@@ -181,33 +187,43 @@ print(f'{d.day} {months[d.month-1]} {d.year}, {days[d.weekday()]}')
 ")
     prompt="[Системный контекст] Сегодня: ${ru_date_context}. ISO: ${DATE}. День недели №${DAY_OF_WEEK} (1=Пн..7=Вс). ЯЗЫК: отвечай ТОЛЬКО на русском. Украинский, английский и другие языки запрещены.
 
+РЕЖИМ БЕЗОПАСНОСТИ: работай только в governance-репозитории. Не выполняй git push, не создавай расписания и не связывайся с внешними системами. Сохраняй посторонние незакоммиченные изменения; stage только конкретные файлы сценария.
+
 ${prompt}"
 
     log "Starting scenario: $command_file"
     log "Command file: $command_path"
     log "Date context: $ru_date_context"
+    log "Agent: Codex ($CODEX_PATH)"
+
+    if [ "$DRY_RUN" = "true" ]; then
+        log "DRY-RUN: headless agent invocation skipped for scenario: $command_file"
+        return 0
+    fi
 
     cd "$WORKSPACE"
 
-    # Запуск Claude Code с содержимым команды как промпт (с timeout-защитой)
     local rc=0
-    local model_args=()
-    if [ -n "$model_override" ]; then
-        model_args=(--model "$model_override")
-        log "Model override: $model_override"
+    local output_file="$LOG_DIR/${DATE}-${command_file}-last-message.txt"
+    # --approve-for-me already selects the workspace-write sandbox; current Codex
+    # rejects combining it with an explicit --sandbox option.
+    local codex_args=(exec --approve-for-me --ephemeral --color never -C "$WORKSPACE" -o "$output_file")
+    case "$model_override" in
+        ""|sonnet|opus|haiku|claude-*) ;;
+        *) codex_args+=(-m "$model_override"); log "Model override: $model_override" ;;
+    esac
+    codex_args+=(-)
+    timeout "$AGENT_TIMEOUT" "$CODEX_PATH" "${codex_args[@]}" <<< "$prompt" >> "$LOG_FILE" 2>&1 || rc=$?
+    if [ -s "$output_file" ]; then
+        printf '\n--- Codex result: %s ---\n' "$command_file" >> "$LOG_FILE"
+        cat "$output_file" >> "$LOG_FILE"
+        printf '\n--- end result ---\n' >> "$LOG_FILE"
     fi
-    # NB: --dangerously-skip-permissions не используется — Claude Code блокирует флаг
-    # под root/sudo (Linux cron). --allowedTools задаёт явный whitelist, чего достаточно.
-    timeout "$CLAUDE_TIMEOUT" "$CLAUDE_PATH" \
-        "${model_args[@]}" \
-        --allowedTools "Read,Write,Edit,Glob,Grep,Bash" \
-        -p "$prompt" \
-        >> "$LOG_FILE" 2>&1 || rc=$?
 
     if [ $rc -eq 124 ]; then
-        log "WARN: Claude CLI timed out after ${CLAUDE_TIMEOUT}s for scenario: $command_file"
+        log "WARN: Codex CLI timed out after ${AGENT_TIMEOUT}s for scenario: $command_file"
     elif [ $rc -ne 0 ]; then
-        log "WARN: Claude CLI exited with code $rc for scenario: $command_file"
+        log "WARN: Codex CLI exited with code $rc for scenario: $command_file"
     fi
 
     if [ $rc -eq 0 ]; then
@@ -216,18 +232,7 @@ ${prompt}"
         log "FAILED scenario: $command_file (rc=$rc)"
     fi
 
-    # Push changes to GitHub (чтобы бот мог читать через API)
-    if git -C "$WORKSPACE" diff --quiet origin/main..HEAD 2>/dev/null; then
-        log "No unpushed commits"
-    else
-        git -C "$WORKSPACE" pull --rebase >> "$LOG_FILE" 2>&1 && log "Pulled (rebase)" || log "WARN: pull --rebase failed"
-        git -C "$WORKSPACE" push >> "$LOG_FILE" 2>&1 && log "Pushed to GitHub" || log "WARN: git push failed"
-    fi
-
-    # Очистить staging area после Claude сессии (предотвращает staging leak в следующие скрипты)
-    # НЕ трогаем working tree — только unstage orphaned changes
-    git -C "$WORKSPACE" reset --quiet 2>/dev/null || true
-    log "Cleared staging area after Claude session"
+    log "Remote sync disabled: scheduled Strategist never pushes automatically"
 
     # macOS notification
     local summary
@@ -266,17 +271,10 @@ acquire_lock() {
     trap "rm -rf \"$lockdir\" 2>/dev/null" EXIT
 }
 
-# Читаем strategy_day из конфига (L4 Personal).
-# The legacy path below hardcodes the macOS Claude project slug (-Users-<login>-IWE),
-# which never matches on a workspace outside $HOME (Windows/Git-Bash: the slug carries
-# the full drive-qualified path). Resolve through $IWE_WORKSPACE first — memory/ there
-# is the symlink to auto-memory on every platform — and keep the old path as fallback
-# so existing macOS installs are untouched.
+# Читаем strategy_day из физического workspace-конфига (L4 Personal).
 RHYTHM_CONFIG="${IWE_WORKSPACE:-$HOME/IWE}/memory/day-rhythm-config.yaml"
-if [ ! -f "$RHYTHM_CONFIG" ]; then
-    RHYTHM_CONFIG="$HOME/.claude/projects/-Users-$(whoami)-IWE/memory/day-rhythm-config.yaml"
-fi
 STRATEGY_DAY_NAME=$(grep 'strategy_day:' "$RHYTHM_CONFIG" 2>/dev/null | awk '{print $2}' || echo "monday")
+STRATEGY_DAY_NAME="${STRATEGY_DAY_NAME:-monday}"
 # Конвертируем имя дня в номер (1=Mon..7=Sun)
 case "$STRATEGY_DAY_NAME" in
     monday)    STRATEGY_DAY_NUM=1 ;;
@@ -308,7 +306,7 @@ case "$1" in
 
         if [ "$DAY_OF_WEEK" -eq "$STRATEGY_DAY_NUM" ]; then
             log "Strategy day ($STRATEGY_DAY_NAME): running session prep"
-            run_claude "session-prep" "sonnet"
+            run_agent "session-prep" "sonnet"
             notify_telegram "session-prep"
         else
             # Canonical Day Open pipeline: deterministic scaffold (reads priorities.yaml,
@@ -323,13 +321,13 @@ case "$1" in
                 # instead of a generic "unavailable/failed". The delivery
                 # graph itself is WP-529 F7 scope, no silent bridge here.
                 log "WARN: Day Open pipeline not found at $DAY_OPEN_PIPELINE — canonical pipeline is not delivered on this install (WP-529 F7); fallback to free-form day-plan prompt"
-                run_claude "day-plan" "sonnet"
+                run_agent "day-plan" "sonnet"
                 notify_telegram "day-plan"
             elif bash "$DAY_OPEN_PIPELINE" >> "$LOG_FILE" 2>&1; then
                 log "Morning: Day Open pipeline OK (scaffold + llm-fill)"
             else
                 log "WARN: Day Open pipeline failed (see lines above in this log) — fallback to free-form day-plan prompt"
-                run_claude "day-plan" "sonnet"
+                run_agent "day-plan" "sonnet"
                 notify_telegram "day-plan"
             fi
         fi
@@ -343,7 +341,7 @@ case "$1" in
             exit 0
         fi
         log "Evening: running evening review"
-        run_claude "evening"
+        run_agent "evening"
         notify_telegram "evening"
         ;;
     "week-review")
@@ -353,23 +351,23 @@ case "$1" in
             exit 0
         fi
         log "Sunday: running week review"
-        run_claude "week-review" "opus"
-        # Fallback push for Knowledge Index (week-review creates a post there)
-        # KI_REPO may not exist for all users — guard with [ -d ]
+        run_agent "week-review" "opus"
+        # Knowledge Index может получить локальный коммит из сценария, но
+        # scheduled runner не отправляет внешние изменения автоматически.
         KI_REPO="$HOME/IWE/DS-Knowledge-Index"
         if [ -d "$KI_REPO/.git" ] && git -C "$KI_REPO" log --oneline -1 --since="1 hour ago" --grep="week-review" 2>/dev/null | grep -q .; then
-            git -C "$KI_REPO" push >> "$LOG_FILE" 2>&1 && log "Pushed Knowledge Index (fallback)" || log "WARN: KI push failed"
+            log "Knowledge Index has a recent local week-review commit; push remains manual"
         fi
         notify_telegram "week-review"
         ;;
     "session-prep")
         log "Manual: running session prep"
-        run_claude "session-prep" "sonnet"
+        run_agent "session-prep" "sonnet"
         notify_telegram "session-prep"
         ;;
     "day-plan")
         log "Manual: running day plan"
-        run_claude "day-plan" "sonnet"
+        run_agent "day-plan" "sonnet"
         notify_telegram "day-plan"
         ;;
     "note-review")
@@ -383,7 +381,7 @@ case "$1" in
         BOLD_NEW_BEFORE=$(grep -vc '🔄' <(grep '^\*\*' "$FLEETING" 2>/dev/null) 2>/dev/null || true); BOLD_NEW_BEFORE=${BOLD_NEW_BEFORE:-0}
         log "Canary: $BOLD_BEFORE bold total ($BOLD_NEW_BEFORE new, $(( BOLD_BEFORE - BOLD_NEW_BEFORE )) deferred 🔄)"
 
-        run_claude "note-review" "claude-haiku-4-5-20251001"
+        run_agent "note-review" "claude-haiku-4-5-20251001"
 
         # Canary: count bold notes after (needs to be visible for alert at line ~274)
         BOLD_AFTER=$(grep -c '^\*\*' "$FLEETING" 2>/dev/null || true); BOLD_AFTER=${BOLD_AFTER:-0}
@@ -403,18 +401,17 @@ case "$1" in
         CLEANUP_OUTPUT=$(python3 "$SCRIPT_DIR/cleanup-processed-notes.py" 2>&1) || true
         log "Cleanup: $CLEANUP_OUTPUT"
 
-        # If cleanup made changes, commit and push
+        # If cleanup made changes, commit locally. External sync remains manual.
         if ! git -C "$WORKSPACE" diff --quiet -- inbox/fleeting-notes.md archive/notes/Notes-Archive.md 2>/dev/null; then
             git -C "$WORKSPACE" add inbox/fleeting-notes.md archive/notes/Notes-Archive.md
             git -C "$WORKSPACE" commit -m "chore: auto-cleanup processed notes from fleeting-notes.md" >> "$LOG_FILE" 2>&1 || true
-            git -C "$WORKSPACE" pull --rebase >> "$LOG_FILE" 2>&1 && log "Cleanup: pulled (rebase)" || log "WARN: cleanup pull --rebase failed"
-            git -C "$WORKSPACE" push >> "$LOG_FILE" 2>&1 && log "Cleanup: pushed" || log "WARN: cleanup push failed"
+            log "Cleanup: local commit created; push remains manual"
         else
             log "Cleanup: no changes to commit"
         fi
 
         # Alert if LLM failed AND cleanup was needed (only for NEW bold, not deferred 🔄)
-        if [ "$BOLD_NEW_AFTER" -ge "$BOLD_NEW_BEFORE" ] && [ "$BOLD_NEW_BEFORE" -gt 0 ]; then
+        if [ "$NOTIFY_ENABLED" = "true" ] && [ "$BOLD_NEW_AFTER" -ge "$BOLD_NEW_BEFORE" ] && [ "$BOLD_NEW_BEFORE" -gt 0 ]; then
             ENV_FILE="$HOME/.config/aist/env"
             if [ -f "$ENV_FILE" ]; then
                 set -a; source "$ENV_FILE"; set +a
@@ -430,12 +427,12 @@ case "$1" in
         ;;
     "day-close")
         log "Manual: running day close"
-        run_claude "day-close" "sonnet"
+        run_agent "day-close" "sonnet"
         notify_telegram "day-close"
         ;;
     "strategy-session")
         log "Manual: running strategy session (interactive)"
-        run_claude "strategy-session"
+        run_agent "strategy-session"
         ;;
     *)
         echo "Usage: $0 {morning|note-review|week-review|session-prep|strategy-session|day-plan|day-close}"
@@ -443,7 +440,7 @@ case "$1" in
         echo "Scenarios:"
         echo "  morning           - 4:00 EET daily (session-prep on Mon, day-plan others)"
         echo "  note-review       - 23:00 EET daily (review fleeting notes + clean inbox)"
-        echo "  week-review       - Sunday 19:00 EET review for club"
+        echo "  week-review       - weekly operational review"
         echo "  session-prep      - Manual session prep (headless preparation)"
         echo "  strategy-session  - Manual strategy session (interactive with user)"
         echo "  day-plan          - Manual day plan"

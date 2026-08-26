@@ -6,9 +6,9 @@
 - **HUB (личные планы):** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/current/
 - **Документы стратегии:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/docs/ (ВСЕ файлы: Strategy.md, Dissatisfactions.md, Session Agenda.md)
 - **Inbox:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/inbox/ ([fleeting-notes.md](https://github.com/{{GITHUB_USER}}/{{GOVERNANCE_REPO}}/blob/main/inbox/fleeting-notes.md) + свежие файлы за неделю)
-- **Активные РП:** `bash {{WORKSPACE_DIR}}/scripts/active-wp-sweep.sh` (агрегатор по `{{GOVERNANCE_REPO}}/inbox/WP-*.md` + git-активность 7д — ~15с, не ручной обход)
+- **Активные РП:** `bash "${IWE_TEMPLATE:-{{WORKSPACE_DIR}}/FMT-exocortex-template}/scripts/active-wp-sweep.sh"` (агрегатор по `{{GOVERNANCE_REPO}}/inbox/WP-*/WP-*.md` + git-активность 7д — ~15с, не ручной обход)
 - **Стратегические карты:** {{WORKSPACE_DIR}}/*/MAPSTRATEGIC.md (если есть в репо)
-- **MEMORY:** ~/.claude/projects/{{CLAUDE_PROJECT_SLUG}}/memory/MEMORY.md
+- **MEMORY:** {{WORKSPACE_DIR}}/memory/MEMORY.md
 
 ## Именование файлов в current/
 
@@ -81,12 +81,12 @@
 
 #### 5. Агрегация активных РП
 
-> Источник: `bash {{WORKSPACE_DIR}}/scripts/active-wp-sweep.sh`
+> Источник: `bash "${IWE_TEMPLATE:-{{WORKSPACE_DIR}}/FMT-exocortex-template}/scripts/active-wp-sweep.sh"`
 >
-> Скрипт обходит все `inbox/WP-*.md`, кросс-проверяет git-активность за 7 дней,
+> Скрипт обходит все `inbox/WP-*/WP-*.md`, кросс-проверяет git-активность за 7 дней,
 > выдаёт markdown-таблицу активных РП со статусами и бюджетами за секунды —
 > не читай `WORKPLAN.md` вручную по каждому репо (эти файлы почти нигде не
-> существуют, а сам `{{GOVERNANCE_REPO}}`/CLAUDE.md называет их отменённым
+> существуют, а сам `{{GOVERNANCE_REPO}}`/AGENTS.md называет их отменённым
 > антипаттерном; ручной обход растягивал session-prep на 30+ минут вместо
 > секунд, WP-484 20.07).
 
@@ -99,17 +99,11 @@
 - Определи: какие нерегулярные блоки применимы на этой неделе? (ретро, архитектура, разбор документа и др.)
 - Если есть — добавь в повестку
 
-#### 6.5. Контент-план недели (→ секция «Контент-план» в WeekPlan)
-
-- Выполни процесс из `prompts/content-plan.md`
-- Собери мероприятия, итоги, fleeting notes, готовые черновики → 5-10 постов
-- Результат включи в черновик WeekPlan как секцию `## Контент-план W{N}`
-
 #### 7. Сформировать черновик WeekPlan
 
 - Выбери РП из месячных приоритетов + active-wp-sweep + carry-over + inbox
 - **Нет Л-задач.** Всё = РП. Личные задачи (налоги, счета, документы) тоже получают номер РП и WP context file. Без номера задача теряется при carry-over.
-- **Актуализация статусов:** Для каждого РП в таблице проверь `inbox/WP-{N}-*.md` (WP context file). Если есть — бери статус и описание оттуда (source-of-truth прогресса). WP context file > carry-over.
+- **Актуализация статусов:** Для каждого РП в таблице проверь `inbox/WP-NNN/WP-NNN.md` (WP context file). Если есть — бери статус и описание оттуда (source-of-truth прогресса). WP context file > carry-over.
 - Сформируй таблицу с бюджетом
 - Сформируй повестку сессии стратегирования (все блоки из шагов 1-6)
 - Сформулируй вопросы для обсуждения с пользователем
@@ -121,7 +115,7 @@
 3. ~~WeekReport~~ — отдельный файл больше не создаётся (deprecated). Итоги — секция в WeekPlan.
 4. Перемести предыдущий `SchedulerReport *.md` из `current/` в `archive/scheduler-reports/` (если есть и не текущий)
 5. **Архивация WP context files (safety net — Close уже архивирует done-файлы):**
-   - Для каждого `inbox/WP-*.md` сверь статус с MEMORY.md (source-of-truth)
+   - Для каждого `inbox/WP-*/WP-*.md` сверь статус с MEMORY.md (source-of-truth)
    - `status: done` / `merged` / `drop` всё ещё в inbox? → переместить в `archive/wp-contexts/` (Close пропустил)
    - Если фронтматтер WP-файла не совпадает с MEMORY.md → обновить фронтматтер перед перемещением
 6. **Полная очистка inbox/ (еженедельно, единственный владелец — Session-Prep):**
@@ -229,7 +223,7 @@ agent: Стратег
 
 **Результат:** черновик WeekPlan (`status: draft`) с повесткой сессии в `current/`.
 
-> Следующий шаг: сессия стратегирования с пользователем → диспетчер `.claude/skills/strategy-session/SKILL.md` (`prompts/strategy-session.md` — устаревший, до разделения на weekly/monthly, не используется).
+> Следующий шаг: сессия стратегирования с пользователем → `.agents/skills/iwe-strategy-session/SKILL.md` (`prompts/strategy-session.md` — устаревший, до разделения на weekly/monthly, не используется).
 
 ---
 

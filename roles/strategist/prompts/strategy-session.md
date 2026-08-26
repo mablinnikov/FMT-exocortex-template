@@ -7,7 +7,7 @@
 - **Документы стратегии:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/docs/ (Strategy.md, Dissatisfactions.md, Session Agenda.md)
 - **Inbox:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/inbox/
 - **SPOKE (планы репо):** {{WORKSPACE_DIR}}/*/WORKPLAN.md
-- **MEMORY:** ~/.claude/projects/{{CLAUDE_PROJECT_SLUG}}/memory/MEMORY.md
+- **MEMORY:** {{WORKSPACE_DIR}}/memory/MEMORY.md
 
 ## Предусловие
 
@@ -16,7 +16,7 @@
 
 ## Процесс
 
-> Интерактивная сессия. Пользователь управляет через Claude Code.
+> Интерактивная сессия. Пользователь управляет через Codex.
 
 #### 0. Если первая сессия месяца — прочитать архив прошлого месяца (БЛОКИРУЮЩЕЕ)
 

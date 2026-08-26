@@ -253,7 +253,7 @@
     },
     {
       "path": ".claude/runtime-overlay.yaml",
-      "sha256": "8a7a0cfcd3606ab80d76fbf3aaf8dec71c2079c01070130ad50913e9e1e30b36"
+      "sha256": "75ebb2a5ae6cbc34b407a545147017ce05292f4f98dfe468f7add7e27308f54c"
     },
     {
       "path": ".claude/scripts/check-index-health.py",
@@ -1417,7 +1417,7 @@
     },
     {
       "path": "memory/protocol-work.md",
-      "sha256": "18496c61531af033a1701b8ea9cf3cd46f0777dceac0964aa6ee5122428c87c0"
+      "sha256": "ef3c55b56178ba112b58adb6d8dbd72fd18e5c3bf07ea9199f4811ce6f2cde24"
     },
     {
       "path": "memory/r-questionnaire.md",
@@ -1605,7 +1605,7 @@
     },
     {
       "path": "roles/strategist/README.md",
-      "sha256": "f84808beb207a6675d32c8fa000d776c8ffba6702d8a38e587e46f71bf5e2e44"
+      "sha256": "06002e6d72f63eab5ba7c95e89d142fb8b5b96406aff2082129003fe2b4718ae"
     },
     {
       "path": "roles/strategist/install.sh",
@@ -1621,11 +1621,11 @@
     },
     {
       "path": "roles/strategist/prompts/day-close.md",
-      "sha256": "eaea3e988571d9a3dd676328fccb61453525df3adcff3928dd56b5a50f934cb8"
+      "sha256": "71a85fcde40b9b863ab878383b8a098267926a13ba7303cfba991fb789202616"
     },
     {
       "path": "roles/strategist/prompts/day-plan.md",
-      "sha256": "184c1f22abd85fd43973760d154d00eb6034a1f6f5a5f7bb866c20c580f95bb0"
+      "sha256": "0b8d6fc7e9839b818ca93dfee592ac4048decc7aaaa04da2c2ce8ecdec38588f"
     },
     {
       "path": "roles/strategist/prompts/evening.md",
@@ -1633,27 +1633,27 @@
     },
     {
       "path": "roles/strategist/prompts/month-close.md",
-      "sha256": "a4d8de9d61ec38577f15cbc303e62ac6c266aa40c0aa054e51c4844f1d53768d"
+      "sha256": "7f471e5134d67013b7dc422e45392c1854be50fcea3150d08eb803cdf7634af8"
     },
     {
       "path": "roles/strategist/prompts/note-review.md",
-      "sha256": "5031dd3ed708521f6f377f8ae47dd4b03150e999ff52b2c07bd141c7df8e37e4"
+      "sha256": "cc9d663ef8f04955e53b798cbc3a6c6b51ff87dc9114b772c2a9c4b0e1a44f8b"
     },
     {
       "path": "roles/strategist/prompts/session-prep.md",
-      "sha256": "5f92502a1261c092054cdfc5f50a62faaa833e36d540db235a4ba792c2fc0421"
+      "sha256": "0f1b1ad82e90756c6529d0eca262fa1fed8aeca7c24e90917f61abf3f32941f1"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-monthly.md",
-      "sha256": "eb8e72c35a5b94fae3634597e61a40a27ec90bc1cf64b5fd7e1971dcce877340"
+      "sha256": "00b9da36074692f831311a8dbc1297e7093daeec8baf4d26f5625394e1c12a42"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly.md",
-      "sha256": "1b36875dd8e2df730315dd2e4737223bbec07aab44cecbe0296cc14d153a90a1"
+      "sha256": "f0741609a8690b85280d5823e6c3c753b4a7865a4115a94679e46334ea2cc059"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/appendix/consent-check.md",
-      "sha256": "02980864b01d01ec3e7d4b9db2e8d1307e9b844a71727160d7c9c090c170e62f"
+      "sha256": "197f43713b86d611349fc9f46fce033d95e1554e509e177128791070a91d8cab"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/appendix/dt-guide-prep.md",
@@ -1665,67 +1665,67 @@
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/00-open.md",
-      "sha256": "aef3315be7bf21e9e02fcb4a9a472c020412d24bb13d8eaa63f009be0e0216a7"
+      "sha256": "008841a8059449bc4617c39d206ed4c0d90a749685a2a26ab1eb15ee4f3f8c38"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/01-review.md",
-      "sha256": "dc411c53b7757f8e2d05944de276779bb1747fc03ab6558d5e8c0a30af762d31"
+      "sha256": "904a8b5dd4f308db46d2d0e4c20c202cde3ea910dd9f9ad9085ab4cb4dc0a188"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/02-inbox.md",
-      "sha256": "b23518e24e0ecdbe117f02814f7ae83ff754abe201b42bc33db1ed6fc4235e31"
+      "sha256": "f324a427449b9895bf1df88f8309cb5f325db5ce70955bcec7cbbb879d103e74"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/03-dissatisfactions.md",
-      "sha256": "e171f1183bab34f96217e5c70873a249ff76271f5b51c61362397ad10e408c79"
+      "sha256": "ea7e60a620e0be424a0b2ce4ad448b3bf8b5d56813a911734688754b4153bf1c"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/04-strategy-sync.md",
-      "sha256": "c038f69525068e872edd430607c07340c1ac1378909d8188cc675675946547c6"
+      "sha256": "8d0063c8f080046519a29b91dbe1e5f6545a4f0ef9a029ab48a6962640e3ef18"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/05a-measurement.md",
-      "sha256": "f844815388563f3c31e9edb8a02ed9bf1e010cfc131edbc63298bb4ea29e7248"
+      "sha256": "54af00a84d94ee6b05147a38fde1365924f93739cfa2ada81c8b7ded161cf4de"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/05b-recommendation.md",
-      "sha256": "80d014d7d997a00fd22891c13c71697c0b749b8860a45860fd8f4c015f01b1de"
+      "sha256": "6611cdc2af59b411d89d00bfd98b0a7b7b5532e4a7c49b9b262b9d689ed1f60f"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/05c-tracking.md",
-      "sha256": "dc37287fb7bb0f53c9dbe5825fcc5f3431f90d4780c6bb938216dc45a4241f18"
+      "sha256": "d023b671e48c6245b29da7db9c2844a3d47c5f20cad51070264c5abce93457cf"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/06a-pool.md",
-      "sha256": "fbbc35bc212b4cb8cc4bd865027d555fb7c968f61c280ecc442066ffecaae797"
+      "sha256": "bcaaab8b6c8107930a806dcdd467ad54fa71de536546c1f2fb57225bccf058a3"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/06b-budget.md",
-      "sha256": "e85d58fea904270c2d29f7857dbd9f17e8b4e06ced8c0ccce9af618d4a196846"
+      "sha256": "0a25153a8efaa97cf98d1afb337cc9072e85ae05c9ef0538dc6dfbb795738d9f"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/06c-finalize.md",
-      "sha256": "18e1c1778cf1bbaa2699a9db1482067c2e78a3ba3aedd9d5721aa9e5a816f24b"
+      "sha256": "3b86100b8a2593590f7c38697e9fb41b77a746ed8da0d68eab5556c881095898"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/07-irregular.md",
-      "sha256": "8953afd4b39db32fb0bb7952359dee59a21ac43bf34ea5830f6a07ab63bb095d"
+      "sha256": "4a04e34d8b54d09cf0988e1da2250eb16d0964e04813e4110ad300aebfa09ed9"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-weekly/steps/08-confirm.md",
-      "sha256": "18fd3f447bd0d165d8226498bae14732ec6d6f9db5415c4543ce1dc06d6f08fd"
+      "sha256": "4b815b6e57bc23fed630db80f461a01ae07d99d92f1a13f81a1ff8e0ae812400"
     },
     {
       "path": "roles/strategist/prompts/strategy-session.md",
-      "sha256": "c2f9b9108bd685bdc01792c33a099a57c6cc50700b4ddb2267c894efe7d0f555"
+      "sha256": "5947594472651e17cb3d455846755af89c510fca7c9d1950c87762b01c514af5"
     },
     {
       "path": "roles/strategist/prompts/update-priorities.md",
-      "sha256": "6585fa8e3d26e060ec6a6607ba06628c0bb3cfd2038f2f77f5623f9ba317277c"
+      "sha256": "90139c8fef64686e26f6ba209a1f0041a7a8d6602015e65880d973580a9a2236"
     },
     {
       "path": "roles/strategist/prompts/week-review.md",
-      "sha256": "b72f1645d231fb094bf485735d9bd0b7d1389cb2f8c03719af42554aa7997bda"
+      "sha256": "8f38ed5b7a354cc720266ce6733daf0687d13b75aad304f7323cbe894361b09c"
     },
     {
       "path": "roles/strategist/role.yaml",
@@ -1749,7 +1749,7 @@
     },
     {
       "path": "roles/strategist/scripts/strategist.sh",
-      "sha256": "a518f398c6564e0cba8ce8d23515e59f2aa560b5f8a3fa070de753c77d966427"
+      "sha256": "cba3df3858d21dfdb8a73776cc9a13798fc1eba85cce62dac099e3ab01085e07"
     },
     {
       "path": "roles/strategist/scripts/systemd/iwe-strategist-morning.service",
@@ -1869,7 +1869,7 @@
     },
     {
       "path": "scripts/active-wp-sweep.sh",
-      "sha256": "cf3618f6b03741dd5de333a80a277c322212d5235c9fbf117588e1cfba92f621"
+      "sha256": "6e0f0f956edd043376fa88b5a3a7479c4470901113ff3445cf604297e0a27c5d"
     },
     {
       "path": "scripts/add-secret.sh",
@@ -2613,7 +2613,7 @@
     },
     {
       "path": "scripts/validate-fmt-scripts.sh",
-      "sha256": "cf234a8ff79225d80c457571adb2b3c8c7627e8862ba6738f5f791c63bc39b18"
+      "sha256": "126c74c17635e4fbb8d1c71af534a63549a305d183dea078c4383e85ebcf65c8"
     },
     {
       "path": "scripts/validate-hypothesis-priority.sh",
@@ -2657,7 +2657,7 @@
     },
     {
       "path": "setup-codex.ps1",
-      "sha256": "272607b3494d2b4a9eabbaf8f200e77669d8c2a352e61296f76572b2f95fc838"
+      "sha256": "90d8bef24917deb15fe72680b13267bd91fa3cd79c70aa4e27080ae8ca348ebe"
     },
     {
       "path": "setup.sh",

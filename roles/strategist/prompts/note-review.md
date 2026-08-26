@@ -3,17 +3,17 @@
 
 ## Контекст
 
-- **Заметки:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/inbox/[fleeting-notes.md](https://github.com/{{GITHUB_USER}}/{{GOVERNANCE_REPO}}/blob/main/inbox/fleeting-notes.md)
+- **Заметки:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/inbox/fleeting-notes.md
 - **НЭП:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/docs/Dissatisfactions.md
 - **Стратегия:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/docs/Strategy.md
 - **План недели:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/current/WeekPlan W*.md
 - **Inbox Экстрактора:** {{WORKSPACE_DIR}}/{{GOVERNANCE_REPO}}/inbox/captures.md
-- **MEMORY:** ~/.claude/projects/{{CLAUDE_PROJECT_SLUG}}/memory/MEMORY.md
+- **MEMORY:** {{WORKSPACE_DIR}}/memory/MEMORY.md
 
 ## Предусловие
 
 > Заметки накоплены за день (или несколько дней).
-> Процесс запускается вечером (~23:00) автоматически (launchd) или вручную.
+> Процесс запускается по настроенному расписанию или вручную.
 > Если новых (жирных) заметок нет — сообщить и завершить.
 
 ## Принципы
@@ -235,7 +235,7 @@
 ```
 
 > **Headless-режим:** НЕ ждать одобрения. Вывести отчёт и сразу перейти к шагу 10 → 11.
-> Этот процесс запускается автоматически (launchd, 23:00). Интерактивного пользователя нет.
+> В автоматическом запуске интерактивного пользователя нет.
 > Все действия обратимы (архив ≠ удаление).
 >
 > **НЕ создавать `inbox-triage.md`.** Все предложения уже записаны в целевые документы (шаги 5-7). Day-Plan читает их оттуда напрямую.
@@ -273,7 +273,7 @@
 - Закоммить изменения в {{GOVERNANCE_REPO}} (fleeting-notes.md + документы с предложениями + personal/ + inbox cleanup + archive)
 - Если были записи для Экстрактора → закоммить {{GOVERNANCE_REPO}}/inbox/captures.md
 - **secrets.md** НЕ коммитится (.gitignore) — но изменения в нём сохраняются локально
-- Запушить
+- Создать локальный коммит только из перечисленных файлов; не выполнять push, pull --rebase или stash
 
 **Результат:**
 - fleeting-notes.md: новые заметки → обработаны → **архивированы** (файл чистый)
@@ -306,7 +306,7 @@
 
 4. Удали перенесённые заметки из `fleeting-notes.md`
 5. **Жирные** (`**текст**`) и `🔄` — остаются
-6. Закоммить и запушить
+6. Создай локальный коммит только из перечисленных файлов; не выполняй push
 
 ---
 

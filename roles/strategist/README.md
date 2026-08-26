@@ -3,7 +3,7 @@
 > **Модуль шаблона:** `roles/strategist/` в [FMT-exocortex-template](../../README.md)
 > **Роль:** R1 Стратег — планирование и отслеживание (DP.D.033 §7, DP.ROLE.001)
 
-Роль Стратег автоматизирует операционное планирование: утренние планы, вечерние итоги, недельные обзоры. Текущий исполнитель: Claude (A1, Grade 3-4).
+Роль Стратег автоматизирует операционное планирование: утренние планы, вечерние итоги и недельные обзоры. В Codex-развёртывании единственный исполнитель — Codex CLI.
 
 ---
 
@@ -23,7 +23,7 @@ FMT-exocortex-template/              DS-strategy/ (отдельный репо)
     protocol-close.md (← day-close)    archive/
 ```
 
-> **Примечание:** Промпты `session-prep`, `strategy-session`, `day-plan`, `week-review`, `day-close`, `note-review` вынесены из шаблона. `day-plan` и `day-close` мигрировали в протоколы `memory/protocol-open.md` и `memory/protocol-close.md`. Остальные создаются пользователем в его DS-репо при установке.
+> **Примечание:** исполняемые промпты остаются в шаблоне как платформенный код. Пользовательские планы и результаты живут в DS-strategy. `day-plan` и `day-close` также опираются на канонические протоколы `memory/protocol-open.md` и `memory/protocol-close.md`.
 
 **Потоки данных:**
 - Промпты (PLATFORM) → `prompts/` (3 базовых) + `memory/protocol-*.md`
@@ -38,7 +38,7 @@ FMT-exocortex-template/              DS-strategy/ (отдельный репо)
 |---|---|---|
 | **Что делает** | Планирует, отслеживает, отчитывается | Помогает осознать НЭП, выбрать методы |
 | **Горизонт** | День → неделя | Неделя → месяц → год |
-| **Взаимодействие** | Headless (session-prep) + интерактив (strategy-session) | Глубоко интерактивный |
+| **Взаимодействие** | Фоновый Codex (session-prep) + интерактивный Codex (strategy-session) | Глубоко интерактивный |
 
 ---
 
@@ -46,32 +46,41 @@ FMT-exocortex-template/              DS-strategy/ (отдельный репо)
 
 | # | Сценарий | Промпт | Триггер | Статус |
 |---|----------|--------|---------|--------|
-| 1 | Подготовка к сессии | DS: `session-prep.md` | Пн утро (headless) | Создаётся пользователем |
-| 1b | Сессия стратегирования | DS: `strategy-session.md` | Вручную (интерактив) | Создаётся пользователем |
+| 1 | Подготовка к сессии | `prompts/session-prep.md` | Пн утро (фоновый запуск) | В шаблоне |
+| 1b | Сессия стратегирования | `.agents/skills/iwe-strategy-session` | Вручную (интерактив) | В шаблоне |
 | 2 | План на день | `memory/protocol-open.md` | Вт-Вс утро + вручную | В шаблоне |
 | 3 | Вечерний итог | `prompts/evening.md` | Вручную | В шаблоне |
-| 4 | Итоги недели | DS: `week-review.md` | Вс ночь | Создаётся пользователем |
+| 4 | Итоги недели | `prompts/week-review.md` | Вс ночь | В шаблоне |
 | 5 | Добавить РП | `prompts/add-wp.md` | Вручную | В шаблоне |
 | 6 | Проверить задачу (WP Gate) | `prompts/check-plan.md` | WP Gate | В шаблоне |
 | 7 | Закрытие дня | `memory/protocol-close.md` | Вручную | В шаблоне |
-| 8 | Обзор заметок | DS: `note-review.md` | По необходимости | Создаётся пользователем |
+| 8 | Обзор заметок | `prompts/note-review.md` | По необходимости | В шаблоне |
 
 ---
 
-## Расписание (launchd, macOS)
+## Расписание
 
-| Время (UTC) | День | Сценарий | Plist |
-|-------------|------|----------|-------|
-| {{TIMEZONE_HOUR}}:00 | Понедельник | `session-prep` (headless) | `com.strategist.morning` |
-| {{TIMEZONE_HOUR}}:00 | Вт-Вс | `day-plan` | `com.strategist.morning` |
-| 00:00 | Понедельник | `week-review` | `com.strategist.weekreview` |
+| Время | День | Сценарий | Задание |
+|-------|------|----------|---------|
+| Утро | Понедельник | `session-prep` (фоновый запуск) | `Strategist Morning` |
+| Утро | Вт-Вс | `day-plan` | `Strategist Morning` |
+| 11:00 | Суббота | `week-review` | `Strategist WeekReview` |
 
-> На Linux: настройте cron вручную (`crontab -e`). Без автоматизации Стратег запускается вручную.
+На Windows сначала подготовьте runtime и проверьте будущие задания без регистрации:
+
+```powershell
+.\setup-codex.ps1 -PrepareStrategist
+.\setup\install-windows-tasks.ps1 -WhatIf
+```
+
+Запуск без `-WhatIf` меняет системное расписание и выполняется только после явного решения пользователя. По умолчанию Стратег не отправляет изменения в GitHub и не посылает уведомления: он создаёт только изолированные локальные коммиты. Уведомления включаются отдельно через `IWE_STRATEGIST_NOTIFY=true`.
+
+На macOS и Linux остаются штатные launchd/systemd-установщики. Без расписания Стратег запускается вручную.
 
 ## Установка
 
 ```bash
-./install.sh          # Установить launchd агенты
+./install.sh          # Установить launchd/systemd задания (macOS/Linux)
 
 # Ручной запуск
 ./scripts/strategist.sh morning           # session-prep (Пн) или day-plan (Вт-Вс)
