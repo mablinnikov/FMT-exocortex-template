@@ -36,6 +36,20 @@ SEED_DIR="$FMT_DIR/seed/strategy/scripts"
 SCRIPTS_DIR="$FMT_DIR/scripts"
 MARKER="# SNAPSHOT — synced manually via script-promote.sh from FMT-exocortex-template/scripts/. Do not edit here directly."
 
+snapshot_matches_source() {
+    # Git for Windows may check files out as CRLF while process substitutions
+    # use LF. Compare content, not checkout-specific line endings.
+    diff -q \
+        <(grep -vF "$MARKER" "$1" | sed 's/\r$//') \
+        <(sed 's/\r$//' "$2") >/dev/null 2>&1
+}
+
+show_snapshot_diff() {
+    diff \
+        <(grep -vF "$MARKER" "$1" | sed 's/\r$//') \
+        <(sed 's/\r$//' "$2")
+}
+
 if [ ! -d "$SEED_DIR" ]; then
     echo "SKIP: $SEED_DIR не найден"
     exit 0
@@ -55,7 +69,7 @@ while IFS= read -r -d '' f; do
         continue
     fi
     checked=$((checked + 1))
-    if ! diff -q <(grep -vF "$MARKER" "$f") "$src" >/dev/null 2>&1; then
+    if ! snapshot_matches_source "$f" "$src"; then
         if $FIX; then
             # Marker goes back on line 2, right after the shebang — the same place the
             # convention above expects it and the same place grep -vF strips it from.
@@ -63,8 +77,12 @@ while IFS= read -r -d '' f; do
             # snapshot before anything is read, so a failure would leave it empty while
             # the script still printed FIXED and returned 0.
             tmp_snapshot="${f}.new.$$"
-            if { head -1 "$src"; printf '%s\n' "$MARKER"; tail -n +2 "$src"; } > "$tmp_snapshot" \
-               && diff -q <(grep -vF "$MARKER" "$tmp_snapshot") "$src" >/dev/null 2>&1; then
+            marker_line="$MARKER"
+            if head -1 "$src" | grep -q $'\r$'; then
+                marker_line="${MARKER}"$'\r'
+            fi
+            if { head -1 "$src"; printf '%s\n' "$marker_line"; tail -n +2 "$src"; } > "$tmp_snapshot" \
+               && snapshot_matches_source "$tmp_snapshot" "$src"; then
                 # Preserve the snapshot's own executable bit, not the source's: a
                 # sourced library is 644 in scripts/ but 755 in seed/, and copying the
                 # source's mode silently stripped +x there (caught by the repo's
@@ -80,7 +98,7 @@ while IFS= read -r -d '' f; do
         else
             echo "FAIL: seed/strategy/scripts/$rel разошёлся с scripts/$rel"
             echo "  diff:"
-            diff <(grep -vF "$MARKER" "$f") "$src" | head -20 | sed 's/^/    /'
+            show_snapshot_diff "$f" "$src" | head -20 | sed 's/^/    /'
             echo "  Фикс: bash scripts/check-seed-drift.sh --fix"
             fail=1
         fi

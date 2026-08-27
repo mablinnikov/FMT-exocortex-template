@@ -1969,7 +1969,7 @@
     },
     {
       "path": "scripts/check-seed-drift.sh",
-      "sha256": "a7ef7cbbcf811a91bac1e4931a72c5704e2d5e4eb9933349dc891a4e64567507"
+      "sha256": "259b849f6070406f3a903dcb0f399d86e26a24ca403f58ce77463958f1d9589e"
     },
     {
       "path": "scripts/check-setup-update-parity.sh",
@@ -2061,7 +2061,7 @@
     },
     {
       "path": "scripts/day-open-pipeline.sh",
-      "sha256": "dd1f1c5bdd8bf14106ba1de7063dd4bb9a8f97c1c1b0d7c9a574f1f2ea346189"
+      "sha256": "4d6531df0fc829a2da26287ab1787a444d121e89604b5a8ffa990cc44f5f976e"
     },
     {
       "path": "scripts/day-open-preflight.sh",
@@ -2613,7 +2613,7 @@
     },
     {
       "path": "scripts/validate-fmt-scripts.sh",
-      "sha256": "126c74c17635e4fbb8d1c71af534a63549a305d183dea078c4383e85ebcf65c8"
+      "sha256": "efe0ba33779d8c0bd67968223a08580e211c28a7bbd323904848697c812a38b8"
     },
     {
       "path": "scripts/validate-hypothesis-priority.sh",

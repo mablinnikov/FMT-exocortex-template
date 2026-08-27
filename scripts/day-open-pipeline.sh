@@ -14,10 +14,13 @@
 set -uo pipefail
 
 DS_STRATEGY="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IWE="${IWE_ROOT:-$(cd "$DS_STRATEGY/.." && pwd)}"
-# Child patch steps (4.2/4.3) fall back to ~/IWE when IWE_ROOT is unset —
-# a launchd/cron env typically has no IWE_ROOT, so pass the resolved root down.
-export IWE_ROOT="$IWE"
+# IWE_WORKSPACE is the public workspace contract used by .iwe-paths and the
+# Windows scheduler. Honour IWE_ROOT only as a legacy input, then normalize it
+# for child scripts that have not migrated yet.
+IWE_WORKSPACE="${IWE_WORKSPACE:-${IWE_ROOT:-$(cd "$DS_STRATEGY/.." && pwd)}}"
+IWE="$IWE_WORKSPACE"
+IWE_ROOT="$IWE_WORKSPACE"
+export IWE_WORKSPACE IWE_ROOT
 CONFIG="$DS_STRATEGY/exocortex/day-rhythm-config.yaml"
 # shellcheck source=lib/ledger-path.sh
 . "$DS_STRATEGY/scripts/lib/ledger-path.sh"

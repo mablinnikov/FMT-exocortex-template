@@ -376,6 +376,21 @@ if [[ "$MODE" == "all" && ${#FILES[@]} -eq 0 ]]; then
         errors=$((errors + 1))
     fi
 
+    day_open_pipeline="$FMT_ROOT/scripts/day-open-pipeline.sh"
+    for invariant in \
+        'IWE_WORKSPACE="${IWE_WORKSPACE:-${IWE_ROOT:-$(cd "$DS_STRATEGY/.." && pwd)}}"' \
+        'IWE_ROOT="$IWE_WORKSPACE"' \
+        'export IWE_WORKSPACE IWE_ROOT'; do
+        if ! grep -qF "$invariant" "$day_open_pipeline"; then
+            echo "  ❌ Day Open: нарушен единый контракт IWE_WORKSPACE: $invariant" >&2
+            errors=$((errors + 1))
+        fi
+    done
+    if grep -qF 'IWE="${IWE_ROOT:-' "$day_open_pipeline"; then
+        echo "  ❌ Day Open: IWE_ROOT снова стал первичным контрактом workspace" >&2
+        errors=$((errors + 1))
+    fi
+
     windows_tasks="$FMT_ROOT/setup/install-windows-tasks.ps1"
     for invariant in \
         '[string]$CodexCliPath' \
