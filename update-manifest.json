@@ -656,6 +656,10 @@
       "sha256": "9c532073dc73a3591234980a3c85df4276c0e5d713997784dd9d94d12d5ad9d4"
     },
     {
+      "path": ".gitattributes",
+      "sha256": "75be46f13d2cd72eb11d245c792ed6adbe3a103471833c0339d4f2a809aef838"
+    },
+    {
       "path": ".githooks/commit-msg",
       "sha256": "f8507693252517c89deb4b963cdd499aa570dbba6663cb62a2ca4db1f8e2f6b9"
     },
@@ -1033,7 +1037,7 @@
     },
     {
       "path": "generate-manifest.sh",
-      "sha256": "92d7628c24d333150c2e05ffef29e76e1367f7c404c249c4b8132cbf77ff195b"
+      "sha256": "daa2a706e74128173e8f0d96efd3391816e6779e5fc3a0621d4db8a327f0dad2"
     },
     {
       "path": "guide-kit/.gitignore",
@@ -2629,7 +2633,7 @@
     },
     {
       "path": "scripts/verify-manifest.sh",
-      "sha256": "169c40d09d910dd454599d10cf6bad5b5a119039b6a2b80ac9b08dcae62bb2c0"
+      "sha256": "355fed50cdf75ee10ee84cf4340125a6e8b0e7b20a28b944cfd24afe021df340"
     },
     {
       "path": "scripts/week-draft-append.sh",
@@ -2697,7 +2701,7 @@
     },
     {
       "path": "translation/glossary-v0.1.csv",
-      "sha256": "e3fee071150469b7b649a757e0bdd4305f205017014cce77bf7d97d09cbc4dcc"
+      "sha256": "838bd745a78b503c51823f4a975d0e619c9b0279ebd70b4e0ab4ad7141015b31"
     },
     {
       "path": "update.sh",

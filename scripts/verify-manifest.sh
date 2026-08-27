@@ -79,7 +79,7 @@ import os
 with open(os.environ["TMP_MANIFEST_PATH"], encoding="utf-8") as f:
     data = json.load(f)
 data["version"] = os.environ["CURRENT_VERSION"]
-with open(os.environ["TMP_MANIFEST_PATH"], "w", encoding="utf-8") as f:
+with open(os.environ["TMP_MANIFEST_PATH"], "w", encoding="utf-8", newline="\n") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
     f.write("\n")
 '

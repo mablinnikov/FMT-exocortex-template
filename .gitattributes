@@ -1,0 +1,3 @@
+# Keep every portable text file byte-consistent across Windows, macOS, Linux,
+# and the repository. Git's text auto-detection leaves binary files untouched.
+* text=auto eol=lf

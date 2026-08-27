@@ -43,6 +43,18 @@ echo "--- generate-manifest.sh must register EVERY setup/ file it skips ---"
 ( cd "$SCRATCH" && bash generate-manifest.sh >/dev/null 2>&1 ) \
     || { fail "generate-manifest.sh itself failed"; exit 1; }
 
+if python3 - "$SCRATCH/update-manifest.json" <<'PYCHK'
+from pathlib import Path
+import sys
+
+raise SystemExit(1 if b"\r\n" in Path(sys.argv[1]).read_bytes() else 0)
+PYCHK
+then
+    pass "generated manifest uses LF on every platform"
+else
+    fail "generated manifest contains CRLF"
+fi
+
 # Cross-check against the REAL setup/ tree, not a fixture: any tracked file
 # under setup/ that generate-manifest.sh silently drops is exactly the
 # defect Evgenii found (test-delivery-route-label.sh was one instance among

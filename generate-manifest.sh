@@ -407,7 +407,7 @@ if not data["excluded_paths"]:
 if not data["deprecated_files"]:
     del data["deprecated_files"]
 
-with open(os.environ["MANIFEST_PATH"], "w", encoding="utf-8") as f:
+with open(os.environ["MANIFEST_PATH"], "w", encoding="utf-8", newline="\n") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
     f.write("\n")
 '
