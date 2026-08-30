@@ -350,7 +350,7 @@ case "$1" in
             log "SKIP: week-review already completed today"
             exit 0
         fi
-        log "Sunday: running week review"
+        log "Scheduled: running week review"
         run_agent "week-review" "opus"
         # Knowledge Index может получить локальный коммит из сценария, но
         # scheduled runner не отправляет внешние изменения автоматически.

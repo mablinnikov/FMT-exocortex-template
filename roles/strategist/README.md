@@ -46,11 +46,11 @@ FMT-exocortex-template/              DS-strategy/ (отдельный репо)
 
 | # | Сценарий | Промпт | Триггер | Статус |
 |---|----------|--------|---------|--------|
-| 1 | Подготовка к сессии | `prompts/session-prep.md` | Пн утро (фоновый запуск) | В шаблоне |
+| 1 | Подготовка к сессии | `prompts/session-prep.md` | Утро `strategy_day` (фоновый запуск) | В шаблоне |
 | 1b | Сессия стратегирования | `.agents/skills/iwe-strategy-session` | Вручную (интерактив) | В шаблоне |
-| 2 | План на день | `memory/protocol-open.md` | Вт-Вс утро + вручную | В шаблоне |
+| 2 | План на день | `memory/protocol-open.md` | Утро вне `strategy_day` + вручную | В шаблоне |
 | 3 | Вечерний итог | `prompts/evening.md` | Вручную | В шаблоне |
-| 4 | Итоги недели | `prompts/week-review.md` | Вс ночь | В шаблоне |
+| 4 | Итоги недели | `prompts/week-review.md` | По недельному расписанию | В шаблоне |
 | 5 | Добавить РП | `prompts/add-wp.md` | Вручную | В шаблоне |
 | 6 | Проверить задачу (WP Gate) | `prompts/check-plan.md` | WP Gate | В шаблоне |
 | 7 | Закрытие дня | `memory/protocol-close.md` | Вручную | В шаблоне |
@@ -62,9 +62,9 @@ FMT-exocortex-template/              DS-strategy/ (отдельный репо)
 
 | Время | День | Сценарий | Задание |
 |-------|------|----------|---------|
-| Утро | Понедельник | `session-prep` (фоновый запуск) | `Strategist Morning` |
-| Утро | Вт-Вс | `day-plan` | `Strategist Morning` |
-| 11:00 | Суббота | `week-review` | `Strategist WeekReview` |
+| Утро | `strategy_day` | `session-prep` (фоновый запуск) | `Strategist Morning` |
+| Утро | Остальные дни | `day-plan` | `Strategist Morning` |
+| 11:00 | Суббота (Windows, по умолчанию) | `week-review` | `Strategist WeekReview` |
 
 На Windows сначала подготовьте runtime и проверьте будущие задания без регистрации:
 
@@ -83,7 +83,7 @@ FMT-exocortex-template/              DS-strategy/ (отдельный репо)
 ./install.sh          # Установить launchd/systemd задания (macOS/Linux)
 
 # Ручной запуск
-./scripts/strategist.sh morning           # session-prep (Пн) или day-plan (Вт-Вс)
+./scripts/strategist.sh morning           # session-prep в strategy_day, иначе day-plan
 ./scripts/strategist.sh evening           # вечерний итог
 ./scripts/strategist.sh week-review       # итоги недели
 ./scripts/strategist.sh strategy-session  # сессия стратегирования (интерактив)

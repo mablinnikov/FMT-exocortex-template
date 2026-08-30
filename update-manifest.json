@@ -1609,7 +1609,7 @@
     },
     {
       "path": "roles/strategist/README.md",
-      "sha256": "06002e6d72f63eab5ba7c95e89d142fb8b5b96406aff2082129003fe2b4718ae"
+      "sha256": "f74394cf8e01dd0af57700372a0dd6ebc884737724b57f3ebf2404ddb6a879bc"
     },
     {
       "path": "roles/strategist/install.sh",
@@ -1645,7 +1645,7 @@
     },
     {
       "path": "roles/strategist/prompts/session-prep.md",
-      "sha256": "0f1b1ad82e90756c6529d0eca262fa1fed8aeca7c24e90917f61abf3f32941f1"
+      "sha256": "103d117321d48b7dfad9fbb037dfbfa23c6f4ebb769653e937d37e5996b8459c"
     },
     {
       "path": "roles/strategist/prompts/strategy-session-monthly.md",
@@ -1729,7 +1729,7 @@
     },
     {
       "path": "roles/strategist/prompts/week-review.md",
-      "sha256": "8f38ed5b7a354cc720266ce6733daf0687d13b75aad304f7323cbe894361b09c"
+      "sha256": "c30106c76461803e99987c9b2a536e56252963acad34b8fd125552a41c1b4c21"
     },
     {
       "path": "roles/strategist/role.yaml",
@@ -1753,7 +1753,7 @@
     },
     {
       "path": "roles/strategist/scripts/strategist.sh",
-      "sha256": "cba3df3858d21dfdb8a73776cc9a13798fc1eba85cce62dac099e3ab01085e07"
+      "sha256": "ebff1d829eaec641ca97a03e98592984431564929741caf986bd2628473f64e7"
     },
     {
       "path": "roles/strategist/scripts/systemd/iwe-strategist-morning.service",
@@ -2661,7 +2661,7 @@
     },
     {
       "path": "setup-codex.ps1",
-      "sha256": "90d8bef24917deb15fe72680b13267bd91fa3cd79c70aa4e27080ae8ca348ebe"
+      "sha256": "feabf72afe9c679661af06339feb40052bb7e564f3f39f1e172cd279b08aae06"
     },
     {
       "path": "setup.sh",
@@ -2750,6 +2750,7 @@
     "scripts/tests/test_residency_gate_skill_adapter.py",
     "scripts/tests/test_setup_runtime_isolation.sh",
     "scripts/tests/test_skill_promote.py",
+    "scripts/tests/test_strategist_week_metrics_contract.py",
     "scripts/tests/test_translate_delta.py",
     "scripts/tests/test_translate_parse.py",
     "scripts/tests/test_update_download_batch_network_failure_failclosed.sh",

@@ -356,6 +356,16 @@ exit 0
             throw "$skillName does not preserve the user extension block"
         }
     }
+
+    $lineEndingInstallRoot = Join-Path $testRoot 'line-ending-installed'
+    & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $templateRoot 'setup-codex.ps1') -Workspace $lineEndingInstallRoot | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'setup-codex.ps1 clean install for line-ending validation failed' }
+    $lineEndingCorePath = Join-Path $lineEndingInstallRoot 'memory\reference\agent-core.md'
+    $lineEndingCore = Get-Content -LiteralPath $lineEndingCorePath -Raw -Encoding UTF8
+    $lineEndingCoreCrLf = $lineEndingCore.Replace("`r`n", "`n").Replace("`r", "`n").Replace("`n", "`r`n")
+    [System.IO.File]::WriteAllText($lineEndingCorePath, $lineEndingCoreCrLf, [System.Text.UTF8Encoding]::new($false))
+    & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $templateRoot 'setup-codex.ps1') -Workspace $lineEndingInstallRoot -Validate | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'setup-codex.ps1 -Validate must tolerate CRLF in generated instruction files' }
     $installedConfig = Get-Content -LiteralPath (Join-Path $installRoot '.codex\config.toml') -Raw -Encoding UTF8
     if ($installedConfig -notmatch '(?m)^\[mcp_servers\.iwe-knowledge\]$') {
         throw 'setup did not configure iwe-knowledge for Codex'

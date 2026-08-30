@@ -23,6 +23,11 @@ function Write-Utf8File {
     [System.IO.File]::WriteAllText($Path, $Content, $Utf8NoBom)
 }
 
+function Convert-ToLfText {
+    param([string]$Text)
+    return $Text.Replace("`r`n", "`n").Replace("`r", "`n")
+}
+
 function Resolve-GitHubUser {
     if ($GitHubUser) { return $GitHubUser }
     $origin = git -C $TemplateDir remote get-url origin 2>$null
@@ -392,7 +397,7 @@ function Test-Installation {
     if (Test-Path -LiteralPath $corePath) {
         $expectedCore = Expand-IwePlaceholders (Get-Content -LiteralPath (Join-Path $TemplateDir 'memory\reference\agent-core.md') -Raw -Encoding UTF8)
         $installedCore = Get-Content -LiteralPath $corePath -Raw -Encoding UTF8
-        if ($installedCore -ceq $expectedCore) {
+        if ((Convert-ToLfText $installedCore) -ceq (Convert-ToLfText $expectedCore)) {
             Write-Host '  OK  common agent core matches template' -ForegroundColor Green
         } else {
             Write-Host '  ERR common agent core differs from template' -ForegroundColor Red
